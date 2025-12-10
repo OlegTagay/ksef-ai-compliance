@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Faktura
+        xmlns="http://crd.gov.pl/wzor/2025/01/01/20001/"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+
+    <!-- ====================== NAGLOWEK ====================== -->
+    <Naglowek>
+        <KodFormularza kodSystemowy="FA (3)" wersjaSchemy="1-0E">FA</KodFormularza>
+        <WariantFormularza>3</WariantFormularza>
+
+        <!-- Дата должна попадать внутри диапазона XSD:
+             >= 2025-09-01T00:00:00Z и <= 2050-01-01T23:59:59Z -->
+        <DataWytworzeniaFa>2025-12-09T12:00:00Z</DataWytworzeniaFa>
+
+        <!-- SystemInfo optional -> можно убрать -->
+    </Naglowek>
+
+    <!-- ====================== PODMIOT 1 (SPRZEDAWCA) ====================== -->
+    <Podmiot1>
+        <DaneIdentyfikacyjne>
+            <IdPodmiotu>
+                <NIP>1111111111</NIP>
+            </IdPodmiotu>
+            <PelnaNazwa>Sprzedawca Sp. z o.o.</PelnaNazwa>
+        </DaneIdentyfikacyjne>
+
+        <Adres>
+            <KodKraju>PL</KodKraju>
+            <AdresL1>Testowa 1</AdresL1>
+            <AdresL2>50-000 Wrocław</AdresL2>
+        </Adres>
+    </Podmiot1>
+
+    <!-- ====================== PODMIOT 2 (NABYWCA) ====================== -->
+    <Podmiot2>
+        <DaneIdentyfikacyjne>
+            <IdPodmiotu>
+                <NIP>2222222222</NIP>
+            </IdPodmiotu>
+            <PelnaNazwa>Nabywca SA</PelnaNazwa>
+        </DaneIdentyfikacyjne>
+
+        <Adres>
+            <KodKraju>PL</KodKraju>
+            <AdresL1>Klientowska 5</AdresL1>
+            <AdresL2>00-000 Warszawa</AdresL2>
+        </Adres>
+    </Podmiot2>
+
+    <!-- ====================== FA – Dane Faktury ====================== -->
+    <Fa>
+        <KodWaluty>PLN</KodWaluty>
+
+        <!-- Data wystawienia -->
+        <P_1>2025-12-09</P_1>
+
+        <!-- Numer faktury -->
+        <P_2>FV/1/12/2025</P_2>
+
+        <!-- ======= co najmniej один FaWiersz ======= -->
+        <FaWiersze>
+            <FaWiersz>
+                <NrWiersza>1</NrWiersza>
+                <P_7>Usługa testowa</P_7>
+                <P_8A>1.00</P_8A>
+                <P_9A>100.00</P_9A>
+                <P_11>23</P_11>
+
+                <!-- wartości pozycji (obowiązkowe!) -->
+                <P_13_1>100.00</P_13_1>
+                <P_14_1>23.00</P_14_1>
+                <P_15>123.00</P_15>
+            </FaWiersz>
+        </FaWiersze>
+
+        <!-- ======= Podsumowanie ======= -->
+        <Podsumowanie>
+            <P_13_1>100.00</P_13_1>
+            <P_14_1>23.00</P_14_1>
+            <P_15>123.00</P_15>
+        </Podsumowanie>
+    </Fa>
+
+</Faktura>
