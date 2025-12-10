@@ -1,7 +1,11 @@
-package com.bsg6.invoice;
+package com.bsg6;
 
+import com.bsg6.config.KsefConfiguration;
+import com.bsg6.service.auth.AuthService;
 import jakarta.xml.bind.JAXBException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.ComponentScan;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -30,33 +34,20 @@ import static org.testng.AssertJUnit.assertNotNull;
 import static org.testng.AssertJUnit.assertTrue;
 
 public class InvoiceIntegrationTest extends KsefBaseIntegrationTest {
-    @Autowired(required = false)
-    private DefaultCryptographyService defaultCryptographyService;
 
-    private EncryptionData encryptionData;
+    EncryptionData encryptionData;
 
-    @BeforeMethod
-    void initializeCryptographyService() {
-        if (defaultCryptographyService == null && ksefClient != null) {
-            defaultCryptographyService = new DefaultCryptographyService(ksefClient);
-        }
-    }
-
-    @DataProvider()
+    @DataProvider
     public Object[][] getInvoicePath() {
         return new Object[][]{
                 {"/xml/invoices/fa_2/invoice-min-fields.xml"}
-//                {"/xml/invoices/fa_2/invoice-template.xml"}
-//                {"/xml/invoices/fa_2/invoice-template-laptop.xml"}
-//                {"/xml/invoices/fa_2/invoice-template-laptop2.xml"},
-//                {"/xml/invoices/fa_2/invoice-min-fields.xml"}
         };
     }
 
     @Test(dataProvider = "getInvoicePath")
     public void sendLaptopInvoiceToKsefTest(String invoicePath) throws JAXBException, IOException, ApiException {
         String sellerNip = "1234563218";
-        String accessToken = authWithCustomNip(sellerNip).accessToken();
+        String accessToken = authService.authWithCustomNipAndRsa(sellerNip).accessToken();
 
         encryptionData = defaultCryptographyService.getEncryptionData();
 
@@ -74,7 +65,7 @@ public class InvoiceIntegrationTest extends KsefBaseIntegrationTest {
         // Step 3: Close session
         closeOnlineSession(sessionReferenceNumber, accessToken);
 
-        await().atMost(60, SECONDS)
+        await().atMost(20, SECONDS)
                 .pollInterval(5, SECONDS)
                 .until(() -> isUpoGenerated(sessionReferenceNumber, accessToken));
 
@@ -176,6 +167,7 @@ public class InvoiceIntegrationTest extends KsefBaseIntegrationTest {
                 .replace("#uuid#", uuid);
 
         byte[] invoice = invoiceTemplate.getBytes(StandardCharsets.UTF_8);
+        DefaultCryptographyService defaultCryptographyService = new DefaultCryptographyService(ksefClient);
 
         byte[] encryptedInvoice = defaultCryptographyService.encryptBytesWithAES256(invoice,
                 encryptionData.cipherKey(),
@@ -215,7 +207,7 @@ public class InvoiceIntegrationTest extends KsefBaseIntegrationTest {
         Assert.assertNotNull(invoice.getInvoiceHash());
         Assert.assertNotNull(invoice.getInvoicingDate());
         Assert.assertNotNull(invoice.getStatus());
-        Assert.assertEquals((int) invoice.getStatus().getCode(), 200);
+        Assert.assertEquals(invoice.getStatus().getCode(), 200);
 
         return invoice;
     }

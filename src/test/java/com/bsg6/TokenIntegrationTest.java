@@ -1,10 +1,14 @@
-package com.bsg6.invoice;
+package com.bsg6;
 
 import com.bsg6.config.ConfigurationProps;
+import com.bsg6.config.KsefConfiguration;
 import com.bsg6.utils.IdentifierGeneratorUtils;
 import com.bsg6.model.AuthTokensPair;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.testng.AbstractTestNGSpringContextTests;
 import org.testng.annotations.Test;
 import pl.akmf.ksef.sdk.api.DefaultKsefClient;
 import pl.akmf.ksef.sdk.api.builders.auth.AuthTokenRequestBuilder;
@@ -24,23 +28,17 @@ import java.net.http.HttpClient;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.awaitility.Awaitility.await;
 
-public class TokenIntegrationTest {
+@SpringBootTest(classes = KsefConfiguration.class)
+public class TokenIntegrationTest extends KsefBaseIntegrationTest {
+
+    @Autowired
+    protected DefaultKsefClient ksefClient;
 
     @Test
     public void retrieveTokenTest() throws Exception {
-        // 2. инициализируем KsefApiProperties
-        ConfigurationProps apiProperties = new ConfigurationProps();
-
-        // 3. создаём HttpClient
-        HttpClient httpClient = HttpClient.newBuilder()
-                .connectTimeout(apiProperties.getRequestTimeout())
-                .build();
-
         // 4. Jackson
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
-
-        KSeFClient ksefClient = new DefaultKsefClient(httpClient, apiProperties, objectMapper);
 
         String contextNip = IdentifierGeneratorUtils.generateRandomNIP();
 
