@@ -1,5 +1,16 @@
 plugins {
     id 'java'
+    id 'org.springframework.boot'
+    id 'io.spring.dependency-management'
+}
+
+ext {
+    junitVersion      = '5.10.0'
+    testngVersion     = '7.11.0'
+    jacksonVersion    = '2.17.1'
+    ksefSdkVersion    = '3.0.7'
+    awaitilityVersion = '4.2.0'
+    jakartaXmlVersion = '4.0.4'
 }
 
 group = 'com.bsg6'
@@ -20,24 +31,30 @@ repositories {
 }
 
 dependencies {
-    testImplementation platform('org.junit:junit-bom:5.10.0')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
-    implementation("pl.akmf.ksef-sdk:ksef-client:3.0.7")
 
-    implementation(platform("com.fasterxml.jackson:jackson-bom:2.17.1"))
-    implementation("com.fasterxml.jackson.core:jackson-databind")
-    implementation("com.fasterxml.jackson.core:jackson-core")
-    implementation("com.fasterxml.jackson.core:jackson-annotations")
-    // https://mvnrepository.com/artifact/tools.jackson.datatype/jackson-datatype-jsr310
-    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
-    implementation("jakarta.xml.bind:jakarta.xml.bind-api:4.0.4")
-    implementation("org.awaitility:awaitility:4.2.0")
+    /* Spring Boot 4 */
+    implementation 'org.springframework.boot:spring-boot-starter'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
 
-    // Import Spring Framework BOM → manages all Spring versions
-    implementation platform("org.springframework:spring-framework-bom:7.0.1")
+    /* Testing */
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation platform("org.junit:junit-bom:${junitVersion}")
+    testImplementation "org.junit.jupiter:junit-jupiter"
+    testImplementation "org.testng:testng:${testngVersion}"
 
-    implementation 'org.springframework.boot:spring-boot:4.0.0'
-    testImplementation 'org.testng:testng:7.11.0'
+    /* KSeF SDK */
+    implementation "pl.akmf.ksef-sdk:ksef-client:${ksefSdkVersion}"
+
+    /* Jackson (BOM-based) */
+    implementation platform("com.fasterxml.jackson:jackson-bom:${jacksonVersion}")
+    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310"
+
+    /* JAXB */
+    implementation "jakarta.xml.bind:jakarta.xml.bind-api:${jakartaXmlVersion}"
+
+    /* Awaitility */
+    implementation "org.awaitility:awaitility:${awaitilityVersion}"
 }
 
 test {

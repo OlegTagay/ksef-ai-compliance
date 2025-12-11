@@ -26,16 +26,11 @@ import pl.akmf.ksef.sdk.client.model.certificate.SelfSignedCertificate;
 import pl.akmf.ksef.sdk.client.model.xml.AuthTokenRequest;
 import pl.akmf.ksef.sdk.client.model.xml.SubjectIdentifierTypeEnum;
 
-import java.net.http.HttpClient;
-
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.awaitility.Awaitility.await;
 
-@SpringBootTest(classes = {KsefConfiguration.class, AuthService.class, OnlineSessionService.class, InvoiceService.class} )
+@SpringBootTest(classes = {KsefConfiguration.class, AuthService.class, OnlineSessionService.class, InvoiceService.class})
 public class TokenIntegrationTest extends KsefBaseIntegrationTest {
-
-    @Autowired
-    protected DefaultKsefClient ksefClient;
 
     @Test
     public void retrieveTokenTest() throws Exception {
