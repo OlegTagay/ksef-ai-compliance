@@ -7,7 +7,7 @@
     </Naglowek>
     <Podmiot1>
         <DaneIdentyfikacyjne>
-            <NIP>1234563218</NIP>
+            <NIP>{{seller_nip}}</NIP>
             <Nazwa>Przykladowa Spolka z o.o.</Nazwa>
         </DaneIdentyfikacyjne>
         <Adres>
@@ -17,7 +17,7 @@
     </Podmiot1>
     <Podmiot2>
         <DaneIdentyfikacyjne>
-            <NIP>8567346215</NIP>
+            <NIP>{{buyer_nip}}</NIP>
             <Nazwa>Klient Testowy Sp. z o.o.</Nazwa>
         </DaneIdentyfikacyjne>
         <Adres>
@@ -27,11 +27,11 @@
     </Podmiot2>
     <Fa>
         <KodWaluty>PLN</KodWaluty>
-        <P_1>#invoicing_date#</P_1>
-        <P_2>FA/LAPTOP-#invoice_number#</P_2>
-        <P_13_1>100.00</P_13_1>
-        <P_14_1>23.00</P_14_1>
-        <P_15>123.00</P_15>
+        <P_1>{{invoicing_date}}</P_1>
+        <P_2>FA/{{invoice_number}}</P_2>
+        <P_13_1>{{net}}</P_13_1>
+        <P_14_1>{{vat}}</P_14_1>
+        <P_15>{{gross}}</P_15>
         <Adnotacje>
             <P_16>2</P_16>
             <P_17>2</P_17>

@@ -18,7 +18,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 
-@SpringBootTest(classes = {KsefConfiguration.class, AuthService.class, OnlineSessionService.class, InvoiceService.class} )
+@SpringBootTest(classes = TestApplication.class)
 public abstract class KsefBaseIntegrationTest extends AbstractTestNGSpringContextTests {
 
     @Autowired

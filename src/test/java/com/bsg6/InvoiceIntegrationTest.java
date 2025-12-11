@@ -1,34 +1,17 @@
 package com.bsg6;
 
-import com.bsg6.config.KsefConfiguration;
-import com.bsg6.service.auth.AuthService;
+import com.bsg6.model.InvoiceData;
+import com.bsg6.model.Result;
 import jakarta.xml.bind.JAXBException;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.ComponentScan;
 import org.testng.Assert;
-import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
-import pl.akmf.ksef.sdk.api.builders.session.OpenOnlineSessionRequestBuilder;
-import pl.akmf.ksef.sdk.api.builders.session.SendInvoiceOnlineSessionRequestBuilder;
-import pl.akmf.ksef.sdk.api.services.DefaultCryptographyService;
 import pl.akmf.ksef.sdk.client.model.ApiException;
 import pl.akmf.ksef.sdk.client.model.session.*;
-import pl.akmf.ksef.sdk.client.model.session.online.OpenOnlineSessionRequest;
-import pl.akmf.ksef.sdk.client.model.session.online.OpenOnlineSessionResponse;
-import pl.akmf.ksef.sdk.client.model.session.online.SendInvoiceOnlineSessionRequest;
-import pl.akmf.ksef.sdk.client.model.session.online.SendInvoiceResponse;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.Base64;
-import java.util.UUID;
+import java.math.BigDecimal;
 
-import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.awaitility.Awaitility.await;
 import static org.testng.AssertJUnit.assertNotNull;
 import static org.testng.AssertJUnit.assertTrue;
@@ -38,16 +21,18 @@ public class InvoiceIntegrationTest extends KsefBaseIntegrationTest {
     EncryptionData encryptionData;
 
     @DataProvider
-    public Object[][] getInvoicePath() {
+    public Object[][] getTestData() {
         return new Object[][]{
-                {"/xml/invoices/fa_2/invoice-min-fields.xml"}
+                {new InvoiceData("1234563218", "8567346215", new BigDecimal(100.00), new BigDecimal(23.00), new BigDecimal(123.00)),
+                        new Result(true, "valid TC")},
+                {new InvoiceData("1234563218", "8567346215", new BigDecimal(100.00), new BigDecimal(23.00), new BigDecimal(123.00)),
+                        new Result(false, "invalid net amount")}
         };
     }
 
-    @Test(dataProvider = "getInvoicePath")
-    public void sendLaptopInvoiceToKsefTest(String invoicePath) throws JAXBException, IOException, ApiException {
-        String sellerNip = "1234563218";
-        String accessToken = authService.authWithCustomNipAndRsa(sellerNip).accessToken();
+    @Test(dataProvider = "getTestData")
+    public void sendSimpleInvoiceTest(InvoiceData invoiceTestCase, Result result) throws JAXBException, IOException, ApiException {
+        String accessToken = authService.authWithCustomNipAndRsa(invoiceTestCase.sellerNip()).accessToken();
 
         encryptionData = defaultCryptographyService.getEncryptionData();
 
@@ -55,9 +40,11 @@ public class InvoiceIntegrationTest extends KsefBaseIntegrationTest {
                 .getReferenceNumber();
 
         // Step 2: Send invoice
-        String invoiceReferenceNumber = invoiceService.sendInvoiceOnlineSession(invoicePath, sessionReferenceNumber, encryptionData, accessToken);
+        String invoiceReferenceNumber = invoiceService.sendInvoiceOnlineSession(invoiceTestCase, sessionReferenceNumber, encryptionData, accessToken);
 
-        onlineSessionService.waitUntilInvoicesProcessed(sessionReferenceNumber, accessToken);
+        boolean isProcessed = onlineSessionService.waitUntilInvoicesProcessed(sessionReferenceNumber, accessToken);
+
+        Assert.assertEquals(isProcessed, result.shouldPass(), result.description());
 
         // Step 3: Close session
         onlineSessionService.closeOnlineSession(sessionReferenceNumber, accessToken);
@@ -87,7 +74,7 @@ public class InvoiceIntegrationTest extends KsefBaseIntegrationTest {
 //    public void sendLaptopInvoiceToKsefTest() throws Exception {
 //        String sellerNip = "1234563218";
 //        String buyerNip = "8567346215";
-//        String invoicePath = "/xml/invoices/fa_2/invoice-min-fields.xml";
+//        String invoicePath = "/xml/invoices/fa_2/invoice-template-min-fields.xml";
 //
 //        String ksefNumber = invoiceService.sendInvoice(invoicePath, sellerNip, buyerNip);
 //

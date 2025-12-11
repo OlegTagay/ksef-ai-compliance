@@ -48,10 +48,16 @@ public class OnlineSessionService {
     /**
      * Wait until all invoices in the session are processed.
      */
-    public void waitUntilInvoicesProcessed(String sessionReference, String accessToken) {
-        await().atMost(60, SECONDS)
-                .pollInterval(5, SECONDS)
-                .until(() -> isInvoicesInSessionProcessed(sessionReference, accessToken));
+    public boolean waitUntilInvoicesProcessed(String sessionReference, String accessToken) {
+        try {
+            await().atMost(60, SECONDS)
+                    .pollInterval(5, SECONDS)
+                    .until(() -> isInvoicesInSessionProcessed(sessionReference, accessToken));
+
+            return true; // processed before timeout
+        } catch (Exception e) {
+            return false; // timeout or unexpected error
+        }
     }
 
     /**

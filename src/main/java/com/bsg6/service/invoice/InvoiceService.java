@@ -1,5 +1,6 @@
 package com.bsg6.service.invoice;
 
+import com.bsg6.model.InvoiceData;
 import org.springframework.stereotype.Service;
 import pl.akmf.ksef.sdk.api.DefaultKsefClient;
 import pl.akmf.ksef.sdk.api.builders.session.SendInvoiceOnlineSessionRequestBuilder;
@@ -14,7 +15,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
@@ -22,25 +22,26 @@ import java.util.UUID;
 
 @Service
 public class InvoiceService {
+    private static final String invoiceTemplatePath = "/xml/invoices/fa_2/invoice-template-min-fields.xml";
     private DefaultKsefClient ksefClient;
 
     public InvoiceService(DefaultKsefClient ksefClient) {
         this.ksefClient = ksefClient;
     }
 
-    public String sendInvoiceOnlineSession(String path, String sessionReferenceNumber, EncryptionData encryptionData,
+    public String sendInvoiceOnlineSession(InvoiceData invoiceTestCase, String sessionReferenceNumber, EncryptionData encryptionData,
                                            String accessToken) throws IOException, ApiException {
         String invoicingDate = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-
-        String invoiceCreationDate = Instant.now().toString();
         String invoiceNumber = UUID.randomUUID().toString();
-        String uuid = UUID.randomUUID().toString();
 
-        String invoiceTemplate = new String(readBytesFromPath(path), StandardCharsets.UTF_8)
-                .replace("#invoicing_date#", invoicingDate)
-                .replace("#invoice_creation_date#", invoiceCreationDate)
-                .replace("#invoice_number#", invoiceNumber)
-                .replace("#uuid#", uuid);
+        String invoiceTemplate = new String(readBytesFromPath(invoiceTemplatePath), StandardCharsets.UTF_8)
+                .replace("{{seller_nip}}", invoiceTestCase.sellerNip())
+                .replace("{{buyer_nip}}", invoiceTestCase.buyerNip())
+                .replace("{{invoicing_date}}", invoicingDate)
+                .replace("{{invoice_number}}", invoiceNumber)
+                .replace("{{net}}", invoiceTestCase.netAmount().toString())
+                .replace("{{vat}}", invoiceTestCase.vatAmount().toString())
+                .replace("{{gross}}", invoiceTestCase.grossAmount().toString());
 
         byte[] invoice = invoiceTemplate.getBytes(StandardCharsets.UTF_8);
         DefaultCryptographyService defaultCryptographyService = new DefaultCryptographyService(ksefClient);
