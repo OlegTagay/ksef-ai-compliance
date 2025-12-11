@@ -2,6 +2,9 @@ package com.bsg6;
 
 import com.bsg6.config.ConfigurationProps;
 import com.bsg6.config.KsefConfiguration;
+import com.bsg6.service.auth.AuthService;
+import com.bsg6.service.invoice.InvoiceService;
+import com.bsg6.service.session.OnlineSessionService;
 import com.bsg6.utils.IdentifierGeneratorUtils;
 import com.bsg6.model.AuthTokensPair;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,7 +31,7 @@ import java.net.http.HttpClient;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.awaitility.Awaitility.await;
 
-@SpringBootTest(classes = KsefConfiguration.class)
+@SpringBootTest(classes = {KsefConfiguration.class, AuthService.class, OnlineSessionService.class, InvoiceService.class} )
 public class TokenIntegrationTest extends KsefBaseIntegrationTest {
 
     @Autowired
