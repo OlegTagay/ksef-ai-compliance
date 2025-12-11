@@ -25,7 +25,7 @@ public class InvoiceIntegrationTest extends KsefBaseIntegrationTest {
         return new Object[][]{
                 {new InvoiceData("1234563218", "8567346215", new BigDecimal(100.00), new BigDecimal(23.00), new BigDecimal(123.00)),
                         new Result(true, "valid TC")},
-                {new InvoiceData("1234563218", "8567346215", new BigDecimal(100.00), new BigDecimal(23.00), new BigDecimal(123.00)),
+                {new InvoiceData("1234563218", "8567346215", new BigDecimal(0), new BigDecimal(23.00), new BigDecimal(123.00)),
                         new Result(false, "invalid net amount")}
         };
     }
