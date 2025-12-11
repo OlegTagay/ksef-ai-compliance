@@ -26,15 +26,17 @@ import static org.awaitility.Awaitility.await;
 
 @Service
 public class AuthService {
-    @Autowired
-    protected CertificateService certificateService;
+    private CertificateService certificateService;
 
-    @Autowired
-    protected SignatureService signatureService;
+    private SignatureService signatureService;
 
-    @Autowired
-    protected DefaultKsefClient ksefClient;
+    private DefaultKsefClient ksefClient;
 
+    public AuthService(CertificateService certificateService, SignatureService signatureService, DefaultKsefClient ksefClient) {
+        this.certificateService = certificateService;
+        this.signatureService = signatureService;
+        this.ksefClient = ksefClient;
+    }
 
     public AuthTokensPair authWithCustomNipAndRsa(String nip) throws ApiException, JAXBException, IOException {
         return authWithCustomNip(nip, EncryptionMethod.Rsa);

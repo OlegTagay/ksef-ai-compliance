@@ -2,6 +2,8 @@ package com.bsg6;
 
 import com.bsg6.config.KsefConfiguration;
 import com.bsg6.service.auth.AuthService;
+import com.bsg6.service.invoice.InvoiceService;
+import com.bsg6.service.session.OnlineSessionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -16,8 +18,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 
-@SpringBootTest(classes = {KsefConfiguration.class, AuthService.class} )
-@ComponentScan(basePackages = "com.bsg6")
+@SpringBootTest(classes = {KsefConfiguration.class, AuthService.class, OnlineSessionService.class, InvoiceService.class} )
 public abstract class KsefBaseIntegrationTest extends AbstractTestNGSpringContextTests {
 
     @Autowired
@@ -44,15 +45,11 @@ public abstract class KsefBaseIntegrationTest extends AbstractTestNGSpringContex
     @Autowired
     protected DefaultCryptographyService defaultCryptographyService;
 
-    protected byte[] readBytesFromPath(String path) throws IOException {
-        byte[] fileBytes;
-        try (InputStream is = KsefBaseIntegrationTest.class.getResourceAsStream(path)) {
-            if (is == null) {
-                throw new FileNotFoundException();
-            }
-            fileBytes = is.readAllBytes();
-        }
-        return fileBytes;
-    }
+    @Autowired
+    protected OnlineSessionService onlineSessionService;
+
+    @Autowired
+    protected InvoiceService invoiceService;
+
 }
 

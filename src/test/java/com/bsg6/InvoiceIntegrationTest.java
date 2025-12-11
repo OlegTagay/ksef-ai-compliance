@@ -51,41 +51,36 @@ public class InvoiceIntegrationTest extends KsefBaseIntegrationTest {
 
         encryptionData = defaultCryptographyService.getEncryptionData();
 
-        // Step 1: Open session and return referenceNumber
-        String sessionReferenceNumber = openOnlineSession(encryptionData, SystemCode.FA_2, SchemaVersion.VERSION_1_0E, SessionValue.FA, accessToken);
+        String sessionReferenceNumber = onlineSessionService.openOnlineSession(encryptionData, SystemCode.FA_2, SchemaVersion.VERSION_1_0E, SessionValue.FA, accessToken)
+                .getReferenceNumber();
 
         // Step 2: Send invoice
-        String invoiceReferenceNumber = sendInvoiceOnlineSession(invoicePath, sessionReferenceNumber, encryptionData, accessToken);
+        String invoiceReferenceNumber = invoiceService.sendInvoiceOnlineSession(invoicePath, sessionReferenceNumber, encryptionData, accessToken);
 
-        // Wait for invoice to be processed && check session status
-        await().atMost(20, SECONDS)
-                .pollInterval(5, SECONDS)
-                .until(() -> isInvoicesInSessionProcessed(sessionReferenceNumber, accessToken));
+        onlineSessionService.waitUntilInvoicesProcessed(sessionReferenceNumber, accessToken);
 
         // Step 3: Close session
-        closeOnlineSession(sessionReferenceNumber, accessToken);
+        onlineSessionService.closeOnlineSession(sessionReferenceNumber, accessToken);
 
-        await().atMost(20, SECONDS)
-                .pollInterval(5, SECONDS)
-                .until(() -> isUpoGenerated(sessionReferenceNumber, accessToken));
+        onlineSessionService.waitUntilUpoGenerated(sessionReferenceNumber, accessToken);
 
         // Step 4: Get documents
-        SessionInvoiceStatusResponse sessionInvoice = getOnlineSessionDocuments(sessionReferenceNumber, accessToken);
+        SessionInvoiceStatusResponse sessionInvoice = onlineSessionService.getOnlineSessionDocuments(sessionReferenceNumber, accessToken);
         String ksefNumber = sessionInvoice.getKsefNumber();
         Assert.assertNotNull(ksefNumber);
 
         // Step 5: Get status after close
-        String upoReferenceNumber = getOnlineSessionUpoAfterCloseSession(sessionReferenceNumber, accessToken);
+        String upoReferenceNumber = onlineSessionService.getOnlineSessionUpoAfterCloseSession(sessionReferenceNumber, accessToken).getReferenceNumber();
 
         // Step 6: Get UPO
-        getOnlineSessionInvoiceUpo(sessionReferenceNumber, ksefNumber, accessToken);
-        getOnlineSessionInvoiceUpoByInvoiceReferenceNumber(sessionReferenceNumber, invoiceReferenceNumber, accessToken);
+        onlineSessionService.getOnlineSessionInvoiceUpo(sessionReferenceNumber, ksefNumber, accessToken);
+        onlineSessionService.getOnlineSessionInvoiceUpoByInvoiceReferenceNumber(sessionReferenceNumber, invoiceReferenceNumber, accessToken);
 
         // Step 7: Get session UPO
-        getOnlineSessionUpo(sessionReferenceNumber, upoReferenceNumber, accessToken);
+        onlineSessionService.getOnlineSessionUpo(sessionReferenceNumber, upoReferenceNumber, accessToken);
 
         // Step 8: Get invoice
-        getInvoice(sessionInvoice.getKsefNumber(), accessToken);
+        invoiceService.getInvoice(sessionInvoice.getKsefNumber(), accessToken);
     }
 
 //    @Test
@@ -102,139 +97,4 @@ public class InvoiceIntegrationTest extends KsefBaseIntegrationTest {
 //        byte[] invoiceXml = invoiceService.getInvoice(ksefNumber, accessToken);
 //        assertTrue(invoiceXml.length > 0);
 //    }
-
-    private boolean isInvoicesInSessionProcessed(String sessionReferenceNumber, String accessToken) {
-        try {
-            SessionStatusResponse statusResponse = ksefClient.getSessionStatus(sessionReferenceNumber, accessToken);
-            return statusResponse != null &&
-                    statusResponse.getSuccessfulInvoiceCount() != null &&
-                    statusResponse.getSuccessfulInvoiceCount() > 0;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private boolean isUpoGenerated(String sessionReferenceNumber, String accessToken) {
-        try {
-            SessionStatusResponse statusResponse = ksefClient.getSessionStatus(sessionReferenceNumber, accessToken);
-            return statusResponse != null && statusResponse.getStatus().getCode() == 200;
-        } catch (Exception e) {
-            Assert.fail(e.getMessage());
-        }
-        return false;
-    }
-
-    private String getOnlineSessionUpoAfterCloseSession(String sessionReferenceNumber, String accessToken) throws ApiException {
-        SessionStatusResponse statusResponse = ksefClient.getSessionStatus(sessionReferenceNumber, accessToken);
-        Assert.assertNotNull(statusResponse);
-        Assert.assertNotNull(statusResponse.getSuccessfulInvoiceCount());
-        Assert.assertEquals((int) statusResponse.getSuccessfulInvoiceCount(), 1);
-        Assert.assertNull(statusResponse.getFailedInvoiceCount());
-        Assert.assertNotNull(statusResponse.getUpo());
-        Assert.assertEquals((int) statusResponse.getStatus().getCode(), 200);
-        UpoPageResponse upoPageResponse = statusResponse.getUpo().getPages().getFirst();
-        Assert.assertNotNull(upoPageResponse);
-        Assert.assertNotNull(upoPageResponse.getReferenceNumber());
-
-        return upoPageResponse.getReferenceNumber();
-    }
-
-    private String openOnlineSession(EncryptionData encryptionData, SystemCode systemCode,
-                                     SchemaVersion schemaVersion, SessionValue value, String accessToken) throws ApiException {
-        OpenOnlineSessionRequest request = new OpenOnlineSessionRequestBuilder()
-                .withFormCode(new FormCode(systemCode, schemaVersion, value))
-                .withEncryptionInfo(encryptionData.encryptionInfo())
-                .build();
-
-        OpenOnlineSessionResponse openOnlineSessionResponse = ksefClient.openOnlineSession(request, accessToken);
-        Assert.assertNotNull(openOnlineSessionResponse);
-        Assert.assertNotNull(openOnlineSessionResponse.getReferenceNumber());
-        return openOnlineSessionResponse.getReferenceNumber();
-    }
-
-    private String sendInvoiceOnlineSession(String path, String sessionReferenceNumber, EncryptionData encryptionData,
-                                            String accessToken) throws IOException, ApiException {
-        String invoicingDate = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-
-        String invoiceCreationDate = Instant.now().toString();
-        String invoiceNumber = UUID.randomUUID().toString();
-        String uuid = UUID.randomUUID().toString();
-
-        String invoiceTemplate = new String(readBytesFromPath(path), StandardCharsets.UTF_8)
-                .replace("#invoicing_date#", invoicingDate)
-                .replace("#invoice_creation_date#", invoiceCreationDate)
-                .replace("#invoice_number#", invoiceNumber)
-                .replace("#uuid#", uuid);
-
-        byte[] invoice = invoiceTemplate.getBytes(StandardCharsets.UTF_8);
-        DefaultCryptographyService defaultCryptographyService = new DefaultCryptographyService(ksefClient);
-
-        byte[] encryptedInvoice = defaultCryptographyService.encryptBytesWithAES256(invoice,
-                encryptionData.cipherKey(),
-                encryptionData.cipherIv());
-
-        FileMetadata invoiceMetadata = defaultCryptographyService.getMetaData(invoice);
-        FileMetadata encryptedInvoiceMetadata = defaultCryptographyService.getMetaData(encryptedInvoice);
-
-        SendInvoiceOnlineSessionRequest sendInvoiceOnlineSessionRequest = new SendInvoiceOnlineSessionRequestBuilder()
-                .withInvoiceHash(invoiceMetadata.getHashSHA())
-                .withInvoiceSize(invoiceMetadata.getFileSize())
-                .withEncryptedInvoiceHash(encryptedInvoiceMetadata.getHashSHA())
-                .withEncryptedInvoiceSize(encryptedInvoiceMetadata.getFileSize())
-                .withEncryptedInvoiceContent(Base64.getEncoder().encodeToString(encryptedInvoice))
-                .build();
-
-        SendInvoiceResponse sendInvoiceResponse = ksefClient.onlineSessionSendInvoice(sessionReferenceNumber, sendInvoiceOnlineSessionRequest, accessToken);
-        Assert.assertNotNull(sendInvoiceResponse);
-        Assert.assertNotNull(sendInvoiceResponse.getReferenceNumber());
-
-        return sendInvoiceResponse.getReferenceNumber();
-    }
-
-    private void closeOnlineSession(String sessionReferenceNumber, String accessToken) throws ApiException {
-        ksefClient.closeOnlineSession(sessionReferenceNumber, accessToken);
-    }
-
-    private SessionInvoiceStatusResponse getOnlineSessionDocuments(String sessionReferenceNumber, String accessToken) throws ApiException {
-        SessionInvoicesResponse sessionInvoices = ksefClient.getSessionInvoices(sessionReferenceNumber, null, 10, accessToken);
-        Assert.assertEquals(sessionInvoices.getInvoices().size(), 1);
-        SessionInvoiceStatusResponse invoice = sessionInvoices.getInvoices().getFirst();
-        Assert.assertNotNull(invoice);
-        Assert.assertNotNull(invoice.getOrdinalNumber());
-        Assert.assertNotNull(invoice.getInvoiceNumber());
-        Assert.assertNotNull(invoice.getKsefNumber());
-        Assert.assertNotNull(invoice.getReferenceNumber());
-        Assert.assertNotNull(invoice.getInvoiceHash());
-        Assert.assertNotNull(invoice.getInvoicingDate());
-        Assert.assertNotNull(invoice.getStatus());
-        Assert.assertEquals(invoice.getStatus().getCode(), 200);
-
-        return invoice;
-    }
-
-    private void getOnlineSessionInvoiceUpo(String sessionReferenceNumber, String ksefNumber, String accessToken) throws ApiException {
-        byte[] upoResponse = ksefClient.getSessionInvoiceUpoByKsefNumber(sessionReferenceNumber, ksefNumber, accessToken);
-
-        Assert.assertNotNull(upoResponse);
-    }
-
-    private void getOnlineSessionInvoiceUpoByInvoiceReferenceNumber(String sessionReferenceNumber, String invoiceReferenceNumber, String accessToken) throws ApiException {
-        byte[] upoResponse = ksefClient.getSessionInvoiceUpoByReferenceNumber(sessionReferenceNumber, invoiceReferenceNumber, accessToken);
-
-        Assert.assertNotNull(upoResponse);
-    }
-
-    private void getOnlineSessionUpo(String sessionReferenceNumber, String upoReferenceNumber, String accessToken) throws ApiException {
-        byte[] sessionUpo = ksefClient.getSessionUpo(sessionReferenceNumber, upoReferenceNumber, accessToken);
-
-        Assert.assertNotNull(sessionUpo);
-    }
-
-    private void getInvoice(String ksefNumber, String accessToken) throws ApiException {
-        byte[] invoice = ksefClient.getInvoice(ksefNumber, accessToken);
-
-        System.out.println(new String(invoice, StandardCharsets.UTF_8));
-
-        Assert.assertNotNull(invoice);
-    }
 }
