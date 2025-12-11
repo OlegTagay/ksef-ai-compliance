@@ -67,8 +67,11 @@ public class InvoiceService {
     }
 
     public byte[] getInvoice(String ksefNumber, String accessToken) throws ApiException {
+        byte[] bytes = ksefClient.getInvoice(ksefNumber, accessToken);
 
-        return ksefClient.getInvoice(ksefNumber, accessToken);
+//        System.out.println(new String(bytes, StandardCharsets.UTF_8));
+
+        return bytes;
     }
 
     private byte[] readBytesFromPath(String path) throws IOException {

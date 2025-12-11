@@ -23,15 +23,21 @@ public class InvoiceIntegrationTest extends KsefBaseIntegrationTest {
     @DataProvider
     public Object[][] getTestData() {
         return new Object[][]{
-                {new InvoiceData("1234563218", "8567346215", new BigDecimal(100.00), new BigDecimal(23.00), new BigDecimal(123.00)),
-                        new Result(true, "valid TC")},
-                {new InvoiceData("1234563218", "8567346215", new BigDecimal(0), new BigDecimal(23.00), new BigDecimal(123.00)),
-                        new Result(false, "invalid net amount")}
+                {new Result(true, "valid TC"),
+                        new InvoiceData("1234563218", "8567346215", new BigDecimal(100.00), new BigDecimal(23.00), new BigDecimal(123.00))},
+                {new Result(false, "invalid net amount"),
+                        new InvoiceData("1234563218", "8567346215", new BigDecimal(0), new BigDecimal(23.00), new BigDecimal(123.00))},
+                {new Result(false, "invalid gross amount"),
+                        new InvoiceData("1234563218", "8567346215", new BigDecimal(100.00), new BigDecimal(23.00), new BigDecimal(0.00))},
+                {new Result(true, "valid buyer nip"),
+                        new InvoiceData("1", "8567346215", new BigDecimal(100.00), new BigDecimal(23.00), new BigDecimal(123.00))},
+                {new Result(false, "valid seller nip"),
+                        new InvoiceData("1234563218", "1", new BigDecimal(0), new BigDecimal(23.00), new BigDecimal(0.00))}
         };
     }
 
     @Test(dataProvider = "getTestData")
-    public void sendSimpleInvoiceTest(InvoiceData invoiceTestCase, Result result) throws JAXBException, IOException, ApiException {
+    public void sendSimpleInvoiceTest(Result result, InvoiceData invoiceTestCase) throws JAXBException, IOException, ApiException {
         String accessToken = authService.authWithCustomNipAndRsa(invoiceTestCase.sellerNip()).accessToken();
 
         encryptionData = defaultCryptographyService.getEncryptionData();
@@ -69,19 +75,4 @@ public class InvoiceIntegrationTest extends KsefBaseIntegrationTest {
         // Step 8: Get invoice
         invoiceService.getInvoice(sessionInvoice.getKsefNumber(), accessToken);
     }
-
-//    @Test
-//    public void sendLaptopInvoiceToKsefTest() throws Exception {
-//        String sellerNip = "1234563218";
-//        String buyerNip = "8567346215";
-//        String invoicePath = "/xml/invoices/fa_2/invoice-template-min-fields.xml";
-//
-//        String ksefNumber = invoiceService.sendInvoice(invoicePath, sellerNip, buyerNip);
-//
-//        assertNotNull(ksefNumber);
-//
-//        String accessToken = ksefAuthService.authWithCustomNip(sellerNip, sellerNip).accessToken();
-//        byte[] invoiceXml = invoiceService.getInvoice(ksefNumber, accessToken);
-//        assertTrue(invoiceXml.length > 0);
-//    }
 }
