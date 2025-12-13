@@ -67,6 +67,10 @@ public class OnlineSessionService {
         ksefClient.closeOnlineSession(sessionReference, accessToken);
     }
 
+    public void closeBatchSession(String sessionReference, String accessToken) throws ApiException {
+        ksefClient.closeBatchSession(sessionReference, accessToken);
+    }
+
     /**
      * Wait for UPO to be generated.
      */
@@ -143,5 +147,17 @@ public class OnlineSessionService {
     public byte[] getOnlineSessionUpo(String sessionReferenceNumber, String upoReferenceNumber, String accessToken) throws ApiException {
 
         return ksefClient.getSessionUpo(sessionReferenceNumber, upoReferenceNumber, accessToken);
+    }
+
+    public SessionStatusResponse getBatchSessionStatus(String referenceNumber, String accessToken)
+            throws ApiException {
+
+        return await()
+                .atMost(30, SECONDS)
+                .pollInterval(2, SECONDS)
+                .until(
+                        () -> ksefClient.getSessionStatus(referenceNumber, accessToken),
+                        response -> response != null && response.getStatus().getCode() == 200
+                );
     }
 }

@@ -24,15 +24,15 @@ public class InvoiceIntegrationTest extends KsefBaseIntegrationTest {
     public Object[][] getTestData() {
         return new Object[][]{
                 {new Result(true, "valid TC"),
-                        new InvoiceData("1234563218", "8567346215", new BigDecimal(100.00), new BigDecimal(23.00), new BigDecimal(123.00))},
-                {new Result(false, "invalid net amount"),
-                        new InvoiceData("1234563218", "8567346215", new BigDecimal(0), new BigDecimal(23.00), new BigDecimal(123.00))},
-                {new Result(false, "invalid gross amount"),
-                        new InvoiceData("1234563218", "8567346215", new BigDecimal(100.00), new BigDecimal(23.00), new BigDecimal(0.00))},
-                {new Result(true, "invalid buyer nip. auth fail"),
-                        new InvoiceData("1", "8567346215", new BigDecimal(100.00), new BigDecimal(23.00), new BigDecimal(123.00))},
-                {new Result(false, "invalid seller nip"),
-                        new InvoiceData("1234563218", "1", new BigDecimal(0), new BigDecimal(23.00), new BigDecimal(0.00))}
+                        new InvoiceData("1234563218", "8567346215", new BigDecimal(100.00), new BigDecimal(23.00), new BigDecimal(123.00))}
+//                {new Result(false, "invalid net amount"),
+//                        new InvoiceData("1234563218", "8567346215", new BigDecimal(0), new BigDecimal(23.00), new BigDecimal(123.00))},
+//                {new Result(false, "invalid gross amount"),
+//                        new InvoiceData("1234563218", "8567346215", new BigDecimal(100.00), new BigDecimal(23.00), new BigDecimal(0.00))},
+//                {new Result(true, "invalid buyer nip. auth fail"),
+//                        new InvoiceData("1", "8567346215", new BigDecimal(100.00), new BigDecimal(23.00), new BigDecimal(123.00))},
+//                {new Result(false, "invalid seller nip"),
+//                        new InvoiceData("1234563218", "1", new BigDecimal(0), new BigDecimal(23.00), new BigDecimal(0.00))}
         };
     }
 

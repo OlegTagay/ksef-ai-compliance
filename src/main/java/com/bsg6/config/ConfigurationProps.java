@@ -15,15 +15,15 @@ public class ConfigurationProps extends KsefApiProperties {
     private final Duration requestTimeout;
 
     public  Properties load() {
-        try (InputStream in = ConfigurationProps.class.getClassLoader().getResourceAsStream("dev.properties")) {
+        try (InputStream in = ConfigurationProps.class.getClassLoader().getResourceAsStream("application.properties")) {
             if (in == null) {
-                throw new RuntimeException("dev.properties not found");
+                throw new RuntimeException("application.properties not found");
             }
             Properties props = new Properties();
             props.load(in);
             return props;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to load dev.properties", e);
+            throw new RuntimeException("Failed to load application.properties", e);
         }
     }
 
