@@ -26,16 +26,16 @@ import static org.awaitility.Awaitility.await;
 
 @Service
 public class AuthService {
-    private CertificateService certificateService;
+    private final CertificateService certificateService;
+    private final SignatureService signatureService;
+    private final DefaultKsefClient ksefClient;
+    private final com.bsg6.config.ConfigurationProps config;
 
-    private SignatureService signatureService;
-
-    private DefaultKsefClient ksefClient;
-
-    public AuthService(CertificateService certificateService, SignatureService signatureService, DefaultKsefClient ksefClient) {
+    public AuthService(CertificateService certificateService, SignatureService signatureService, DefaultKsefClient ksefClient, com.bsg6.config.ConfigurationProps config) {
         this.certificateService = certificateService;
         this.signatureService = signatureService;
         this.ksefClient = ksefClient;
+        this.config = config;
     }
 
     public AuthTokensPair authWithCustomNipAndRsa(String nip) throws ApiException, JAXBException, IOException {
@@ -47,108 +47,78 @@ public class AuthService {
     }
 
     private AuthTokensPair authWithCustomNip(String nip, EncryptionMethod encryptionMethod) throws ApiException, JAXBException, IOException {
+        // Get authentication challenge
         AuthenticationChallengeResponse challenge = ksefClient.getAuthChallenge();
 
+        // Build auth token request with NIP context
         AuthTokenRequest authTokenRequest = new AuthTokenRequestBuilder()
                 .withChallenge(challenge.getChallenge())
                 .withContextNip(nip)
                 .withSubjectType(SubjectIdentifierTypeEnum.CERTIFICATE_SUBJECT)
                 .build();
 
-        String xml = AuthTokenRequestSerializer.authTokenRequestSerializer(authTokenRequest);
-
         //TODO: Can we get Company name from third party service here using NIP?
-        SelfSignedCertificate cert = certificateService.getCompanySeal("Kowalski sp. z o.o", "VATPL-" + nip,
-                "Kowalski", encryptionMethod);
+        SelfSignedCertificate certificate = certificateService.getCompanySeal(
+                config.getDefaultCompanyName(),
+                "VATPL-" + nip,
+                config.getDefaultCompanySubject(),
+                encryptionMethod);
 
-        String signedXml = signatureService.sign(xml.getBytes(), cert.certificate(), cert.getPrivateKey());
-
-        SignatureResponse submitAuthTokenResponse = ksefClient.submitAuthTokenRequest(signedXml, false);
-
-        await().atMost(15, SECONDS)
-                .pollInterval(1, SECONDS)
-                .until(() -> isAuthProcessReady(submitAuthTokenResponse.getReferenceNumber(), submitAuthTokenResponse.getAuthenticationToken().getToken()));
-
-        AuthOperationStatusResponse tokenResponse = ksefClient.redeemToken(submitAuthTokenResponse.getAuthenticationToken().getToken());
-
-        return new AuthTokensPair(tokenResponse.getAccessToken().getToken(), tokenResponse.getRefreshToken().getToken());
-    }
-
-    private AuthTokensPair authWithCustomNip(AuthTokenRequestBuilder authTokenRequestBuilder, SelfSignedCertificate cert) throws ApiException, JAXBException, IOException {
-        AuthenticationChallengeResponse challenge = ksefClient.getAuthChallenge();
-
-        AuthTokenRequest authTokenRequest = authTokenRequestBuilder
-                .withChallenge(challenge.getChallenge())
-                .build();
-
-        String xml = AuthTokenRequestSerializer.authTokenRequestSerializer(authTokenRequest);
-
-        String signedXml = signatureService.sign(xml.getBytes(), cert.certificate(), cert.getPrivateKey());
-
-        SignatureResponse submitAuthTokenResponse = ksefClient.submitAuthTokenRequest(signedXml, false);
-
-        //Czekanie na zakończenie procesu
-        await().atMost(15, SECONDS)
-                .pollInterval(1, SECONDS)
-                .until(() -> isAuthProcessReady(submitAuthTokenResponse.getReferenceNumber(), submitAuthTokenResponse.getAuthenticationToken().getToken()));
-
-        AuthOperationStatusResponse tokenResponse = ksefClient.redeemToken(submitAuthTokenResponse.getAuthenticationToken().getToken());
-
-        return new AuthTokensPair(tokenResponse.getAccessToken().getToken(), tokenResponse.getRefreshToken().getToken());
+        // Use unified authentication flow
+        return authenticate(authTokenRequest, certificate);
     }
 
     private AuthTokensPair authWithCustomPesel(String context, String pesel, EncryptionMethod encryptionMethod) throws ApiException, JAXBException, IOException {
+        // Get authentication challenge
         AuthenticationChallengeResponse challenge = ksefClient.getAuthChallenge();
 
+        // Build auth token request with context NIP
         AuthTokenRequest authTokenRequest = new AuthTokenRequestBuilder()
                 .withChallenge(challenge.getChallenge())
                 .withContextNip(context)
                 .withSubjectType(SubjectIdentifierTypeEnum.CERTIFICATE_SUBJECT)
                 .build();
 
-        String xml = AuthTokenRequestSerializer.authTokenRequestSerializer(authTokenRequest);
+        // Get personal certificate
+        SelfSignedCertificate certificate = certificateService.getPersonalCertificate(
+                config.getDefaultPersonGivenName(),
+                config.getDefaultPersonSurname(),
+                config.getDefaultPersonIdentifier(),
+                pesel,
+                config.getDefaultPersonGivenName() + " " + config.getDefaultPersonSurname(),
+                encryptionMethod);
 
-        SelfSignedCertificate cert = certificateService.getPersonalCertificate("M", "B", "PNOPL", pesel, "M B", encryptionMethod);
-
-        String signedXml = signatureService.sign(xml.getBytes(), cert.certificate(), cert.getPrivateKey());
-
-        SignatureResponse submitAuthTokenResponse = ksefClient.submitAuthTokenRequest(signedXml, false);
-
-        await().atMost(14, SECONDS)
-                .pollInterval(1, SECONDS)
-                .until(() -> isAuthProcessReady(submitAuthTokenResponse.getReferenceNumber(), submitAuthTokenResponse.getAuthenticationToken().getToken()));
-
-        AuthOperationStatusResponse tokenResponse = ksefClient.redeemToken(submitAuthTokenResponse.getAuthenticationToken().getToken());
-
-        return new AuthTokensPair(tokenResponse.getAccessToken().getToken(), tokenResponse.getRefreshToken().getToken());
+        // Use unified authentication flow
+        return authenticate(authTokenRequest, certificate);
     }
 
-    private AuthTokensPair authAsPeppolProvider(String peppolId) throws ApiException, JAXBException,
-            IOException {
-        AuthenticationChallengeResponse challenge = ksefClient.getAuthChallenge();
-
-        AuthTokenRequest authTokenRequest = new AuthTokenRequestBuilder()
-                .withChallenge(challenge.getChallenge())
-                .withPeppolId(peppolId)
-                .withSubjectType(SubjectIdentifierTypeEnum.CERTIFICATE_SUBJECT)
-                .build();
-
+    /**
+     * Unified authentication method that handles the common authentication flow.
+     * This eliminates code duplication across NIP, PESEL, and PEPPOL authentication methods.
+     */
+    private AuthTokensPair authenticate(AuthTokenRequest authTokenRequest, SelfSignedCertificate certificate)
+            throws ApiException, JAXBException, IOException {
+        // Serialize auth token request to XML
         String xml = AuthTokenRequestSerializer.authTokenRequestSerializer(authTokenRequest);
 
-        SelfSignedCertificate cert = certificateService.getCompanySeal("Kowalski sp. z o.o", peppolId, peppolId);
+        // Sign the XML with the certificate
+        String signedXml = signatureService.sign(xml.getBytes(), certificate.certificate(), certificate.getPrivateKey());
 
-        String signedXml = signatureService.sign(xml.getBytes(), cert.certificate(), cert.getPrivateKey());
-
+        // Submit the signed auth token request
         SignatureResponse submitAuthTokenResponse = ksefClient.submitAuthTokenRequest(signedXml, false);
 
-        //Czekanie na zakończenie procesu
-        await().atMost(14, SECONDS)
-                .pollInterval(1, SECONDS)
-                .until(() -> isAuthProcessReady(submitAuthTokenResponse.getReferenceNumber(), submitAuthTokenResponse.getAuthenticationToken().getToken()));
+        // Poll until authentication process is ready
+        await().atMost(config.getAuthPollingTimeout())
+                .pollInterval(config.getAuthPollingInterval())
+                .until(() -> isAuthProcessReady(submitAuthTokenResponse.getReferenceNumber(),
+                        submitAuthTokenResponse.getAuthenticationToken().getToken()));
 
-        AuthOperationStatusResponse tokenResponse = ksefClient.redeemToken(submitAuthTokenResponse.getAuthenticationToken().getToken());
+        // Redeem the token to get access and refresh tokens
+        AuthOperationStatusResponse tokenResponse = ksefClient.redeemToken(
+                submitAuthTokenResponse.getAuthenticationToken().getToken());
 
-        return new AuthTokensPair(tokenResponse.getAccessToken().getToken(), tokenResponse.getRefreshToken().getToken());
+        return new AuthTokensPair(tokenResponse.getAccessToken().getToken(),
+                tokenResponse.getRefreshToken().getToken());
     }
 
     private boolean isAuthProcessReady(String referenceNumber, String tempAuthToken) throws ApiException {

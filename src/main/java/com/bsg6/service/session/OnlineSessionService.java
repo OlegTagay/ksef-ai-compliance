@@ -20,9 +20,11 @@ public class OnlineSessionService {
 
     private static final Logger log = LoggerFactory.getLogger(OnlineSessionService.class);
     private final DefaultKsefClient ksefClient;
+    private final com.bsg6.config.ConfigurationProps config;
 
-    public OnlineSessionService(DefaultKsefClient ksefClient) {
+    public OnlineSessionService(DefaultKsefClient ksefClient, com.bsg6.config.ConfigurationProps config) {
         this.ksefClient = ksefClient;
+        this.config = config;
     }
 
     /**
@@ -54,8 +56,8 @@ public class OnlineSessionService {
      */
     public boolean waitUntilInvoicesProcessed(String sessionReference, String accessToken) {
         try {
-            await().atMost(60, SECONDS)
-                    .pollInterval(5, SECONDS)
+            await().atMost(config.getSessionProcessingTimeout())
+                    .pollInterval(config.getSessionProcessingInterval())
                     .until(() -> isInvoicesInSessionProcessed(sessionReference, accessToken));
 
             return true; // processed before timeout
@@ -79,8 +81,8 @@ public class OnlineSessionService {
      * Wait for UPO to be generated.
      */
     public void waitUntilUpoGenerated(String sessionReference, String accessToken) {
-        await().atMost(60, SECONDS)
-                .pollInterval(5, SECONDS)
+        await().atMost(config.getSessionUpoTimeout())
+                .pollInterval(config.getSessionUpoInterval())
                 .until(() -> isUpoGenerated(sessionReference, accessToken));
     }
 
@@ -158,8 +160,8 @@ public class OnlineSessionService {
             throws ApiException {
 
         return await()
-                .atMost(30, SECONDS)
-                .pollInterval(2, SECONDS)
+                .atMost(config.getBatchStatusTimeout())
+                .pollInterval(config.getBatchStatusInterval())
                 .until(
                         () -> ksefClient.getSessionStatus(referenceNumber, accessToken),
                         response -> response.getStatus().getCode() == 200

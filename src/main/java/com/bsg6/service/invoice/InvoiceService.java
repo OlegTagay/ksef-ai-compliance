@@ -28,33 +28,25 @@ import java.util.*;
 
 @Service
 public class InvoiceService {
-    private static final String invoiceTemplatePath = "/xml/invoices/fa_2/invoice-template-min-fields.xml";
-
     private static final Logger log = LoggerFactory.getLogger(InvoiceService.class);
 
-    private DefaultKsefClient ksefClient;
-    private DefaultCryptographyService defaultCryptographyService;
+    private final DefaultKsefClient ksefClient;
+    private final DefaultCryptographyService defaultCryptographyService;
+    private final com.bsg6.config.ConfigurationProps config;
+    private final String invoiceTemplatePath;
 
-    public InvoiceService(DefaultKsefClient ksefClient, DefaultCryptographyService defaultCryptographyService) {
+    public InvoiceService(DefaultKsefClient ksefClient, DefaultCryptographyService defaultCryptographyService, com.bsg6.config.ConfigurationProps config) {
         this.ksefClient = ksefClient;
         this.defaultCryptographyService = defaultCryptographyService;
+        this.config = config;
+        this.invoiceTemplatePath = config.getDefaultInvoiceTemplatePath();
     }
 
     public String sendInvoiceOnlineSession(InvoiceData invoiceTestCase, String sessionReferenceNumber, EncryptionData encryptionData,
                                            String accessToken) throws IOException, ApiException {
-        String invoicingDate = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-        String invoiceNumber = UUID.randomUUID().toString();
-
-        String invoiceTemplate = new String(readBytesFromPath(invoiceTemplatePath), StandardCharsets.UTF_8)
-                .replace("#seller_nip#", invoiceTestCase.sellerNip())
-                .replace("#buyer_nip#", invoiceTestCase.buyerNip())
-                .replace("#invoicing_date#", invoicingDate)
-                .replace("#invoice_number#", invoiceNumber)
-                .replace("#net#", invoiceTestCase.netAmount().toString())
-                .replace("#vat#", invoiceTestCase.vatAmount().toString())
-                .replace("#gross#", invoiceTestCase.grossAmount().toString());
-
-        byte[] invoice = invoiceTemplate.getBytes(StandardCharsets.UTF_8);
+        // Render invoice from template with invoice number included
+        String invoiceXml = renderInvoiceFromTemplate(invoiceTestCase, true);
+        byte[] invoice = invoiceXml.getBytes(StandardCharsets.UTF_8);
 
         byte[] encryptedInvoice = defaultCryptographyService.encryptBytesWithAES256(invoice,
                 encryptionData.cipherKey(),
@@ -77,17 +69,8 @@ public class InvoiceService {
     }
 
     public String openBatchSessionAndSendInvoicesParts(InvoiceData invoiceTestCase, String accessToken, int invoicesCount, int partsCount) throws IOException, ApiException {
-        String invoicingDate = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-        String invoiceNumber = UUID.randomUUID().toString();
-
-        String invoiceTemplate = new String(readBytesFromPath(invoiceTemplatePath), StandardCharsets.UTF_8)
-                .replace("#seller_nip#", invoiceTestCase.sellerNip())
-                .replace("#buyer_nip#", invoiceTestCase.buyerNip())
-                .replace("#invoicing_date#", invoicingDate)
-                //.replace("#invoice_number#", invoiceNumber) // That one is generated further at generateInvoicesInMemory, as for each .xml unique identifier required
-                .replace("#net#", invoiceTestCase.netAmount().toString())
-                .replace("#vat#", invoiceTestCase.vatAmount().toString())
-                .replace("#gross#", invoiceTestCase.grossAmount().toString());
+        // Render invoice from template (invoice number will be generated per-invoice by generateInvoicesInMemory)
+        String invoiceTemplate = renderInvoiceFromTemplate(invoiceTestCase, false);
 
         EncryptionData encryptionData = defaultCryptographyService.getEncryptionData();
 
@@ -156,20 +139,51 @@ public class InvoiceService {
         return response.getInvoices();
     }
 
+    /**
+     * Encrypts ZIP parts for batch processing.
+     * Uses the injected defaultCryptographyService to avoid creating unnecessary instances.
+     */
     private List<BatchPartSendingInfo> encryptZipParts(List<byte[]> zipParts, byte[] cipherKey, byte[] cipherIv) {
-        DefaultCryptographyService defaultCryptographyService = new DefaultCryptographyService(ksefClient);
-
         List<BatchPartSendingInfo> encryptedZipParts = new ArrayList<>();
         for (int i = 0; i < zipParts.size(); i++) {
-            byte[] encryptedZipPart = defaultCryptographyService.encryptBytesWithAES256(
+            byte[] encryptedZipPart = this.defaultCryptographyService.encryptBytesWithAES256(
                     zipParts.get(i),
                     cipherKey,
                     cipherIv
             );
-            FileMetadata zipPartMetadata = defaultCryptographyService.getMetaData(encryptedZipPart);
+            FileMetadata zipPartMetadata = this.defaultCryptographyService.getMetaData(encryptedZipPart);
             encryptedZipParts.add(new BatchPartSendingInfo(encryptedZipPart, zipPartMetadata, (i + 1)));
         }
         return encryptedZipParts;
+    }
+
+    /**
+     * Renders an invoice from the template by replacing placeholders with actual data.
+     *
+     * @param invoiceData The invoice data to populate the template with
+     * @param includeInvoiceNumber Whether to replace the invoice_number placeholder (not used for batch)
+     * @return The rendered invoice as a string
+     */
+    private String renderInvoiceFromTemplate(InvoiceData invoiceData, boolean includeInvoiceNumber) throws IOException {
+        String invoicingDate = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        String invoiceNumber = UUID.randomUUID().toString();
+
+        String template = new String(readBytesFromPath(invoiceTemplatePath), StandardCharsets.UTF_8);
+
+        String rendered = template
+                .replace("#seller_nip#", invoiceData.sellerNip())
+                .replace("#buyer_nip#", invoiceData.buyerNip())
+                .replace("#invoicing_date#", invoicingDate)
+                .replace("#net#", invoiceData.netAmount().toString())
+                .replace("#vat#", invoiceData.vatAmount().toString())
+                .replace("#gross#", invoiceData.grossAmount().toString());
+
+        // Invoice number replacement is handled by generateInvoicesInMemory() for batch processing
+        if (includeInvoiceNumber) {
+            rendered = rendered.replace("#invoice_number#", invoiceNumber);
+        }
+
+        return rendered;
     }
 
     private byte[] readBytesFromPath(String path) throws IOException {
