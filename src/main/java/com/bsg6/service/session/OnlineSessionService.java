@@ -1,10 +1,13 @@
 package com.bsg6.service.session;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import pl.akmf.ksef.sdk.api.DefaultKsefClient;
 import pl.akmf.ksef.sdk.api.builders.session.OpenOnlineSessionRequestBuilder;
 import pl.akmf.ksef.sdk.client.model.ApiException;
+import pl.akmf.ksef.sdk.client.model.UpoVersion;
 import pl.akmf.ksef.sdk.client.model.session.*;
 import pl.akmf.ksef.sdk.client.model.session.online.OpenOnlineSessionRequest;
 import pl.akmf.ksef.sdk.client.model.session.online.OpenOnlineSessionResponse;
@@ -15,6 +18,7 @@ import static org.awaitility.Awaitility.await;
 @Service
 public class OnlineSessionService {
 
+    private static final Logger log = LoggerFactory.getLogger(OnlineSessionService.class);
     private final DefaultKsefClient ksefClient;
 
     public OnlineSessionService(DefaultKsefClient ksefClient) {
@@ -36,7 +40,7 @@ public class OnlineSessionService {
                 .withEncryptionInfo(encryptionData.encryptionInfo())
                 .build();
 
-        OpenOnlineSessionResponse response = ksefClient.openOnlineSession(request, "upo-v4-3",accessToken);
+        OpenOnlineSessionResponse response = ksefClient.openOnlineSession(request, UpoVersion.UPO_4_3,accessToken);
 
         if (response == null || response.getReferenceNumber() == null) {
             throw new IllegalStateException("KSeF returned no session reference number.");
@@ -135,6 +139,7 @@ public class OnlineSessionService {
     }
 
     public byte[] getOnlineSessionInvoiceUpo(String sessionReferenceNumber, String ksefNumber, String accessToken) throws ApiException {
+        log.debug("getOnlineSessionInvoiceUpo: sessionReferenceNumber: {}, ksefNumber: {}", sessionReferenceNumber, ksefNumber);
 
         return ksefClient.getSessionInvoiceUpoByKsefNumber(sessionReferenceNumber, ksefNumber, accessToken);
     }
@@ -157,7 +162,7 @@ public class OnlineSessionService {
                 .pollInterval(2, SECONDS)
                 .until(
                         () -> ksefClient.getSessionStatus(referenceNumber, accessToken),
-                        response -> response != null && response.getStatus().getCode() == 200
+                        response -> response.getStatus().getCode() == 200
                 );
     }
 }

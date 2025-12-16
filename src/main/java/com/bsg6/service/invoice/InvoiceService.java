@@ -1,6 +1,8 @@
 package com.bsg6.service.invoice;
 
 import com.bsg6.model.InvoiceData;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import pl.akmf.ksef.sdk.api.DefaultKsefClient;
 import pl.akmf.ksef.sdk.api.builders.batch.OpenBatchSessionRequestBuilder;
@@ -14,6 +16,7 @@ import pl.akmf.ksef.sdk.client.model.session.batch.OpenBatchSessionResponse;
 import pl.akmf.ksef.sdk.client.model.session.online.SendInvoiceOnlineSessionRequest;
 import pl.akmf.ksef.sdk.client.model.session.online.SendInvoiceResponse;
 import pl.akmf.ksef.sdk.system.FilesUtil;
+import pl.akmf.ksef.sdk.client.model.UpoVersion;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -26,6 +29,9 @@ import java.util.*;
 @Service
 public class InvoiceService {
     private static final String invoiceTemplatePath = "/xml/invoices/fa_2/invoice-template-min-fields.xml";
+
+    private static final Logger log = LoggerFactory.getLogger(InvoiceService.class);
+
     private DefaultKsefClient ksefClient;
     private DefaultCryptographyService defaultCryptographyService;
 
@@ -40,13 +46,13 @@ public class InvoiceService {
         String invoiceNumber = UUID.randomUUID().toString();
 
         String invoiceTemplate = new String(readBytesFromPath(invoiceTemplatePath), StandardCharsets.UTF_8)
-                .replace("{{seller_nip}}", invoiceTestCase.sellerNip())
-                .replace("{{buyer_nip}}", invoiceTestCase.buyerNip())
-                .replace("{{invoicing_date}}", invoicingDate)
-                .replace("{{invoice_number}}", invoiceNumber)
-                .replace("{{net}}", invoiceTestCase.netAmount().toString())
-                .replace("{{vat}}", invoiceTestCase.vatAmount().toString())
-                .replace("{{gross}}", invoiceTestCase.grossAmount().toString());
+                .replace("#seller_nip#", invoiceTestCase.sellerNip())
+                .replace("#buyer_nip#", invoiceTestCase.buyerNip())
+                .replace("#invoicing_date#", invoicingDate)
+                .replace("#invoice_number#", invoiceNumber)
+                .replace("#net#", invoiceTestCase.netAmount().toString())
+                .replace("#vat#", invoiceTestCase.vatAmount().toString())
+                .replace("#gross#", invoiceTestCase.grossAmount().toString());
 
         byte[] invoice = invoiceTemplate.getBytes(StandardCharsets.UTF_8);
 
@@ -75,17 +81,21 @@ public class InvoiceService {
         String invoiceNumber = UUID.randomUUID().toString();
 
         String invoiceTemplate = new String(readBytesFromPath(invoiceTemplatePath), StandardCharsets.UTF_8)
-                .replace("{{seller_nip}}", invoiceTestCase.sellerNip())
-                .replace("{{buyer_nip}}", invoiceTestCase.buyerNip())
-                .replace("{{invoicing_date}}", invoicingDate)
-                .replace("{{invoice_number}}", invoiceNumber)
-                .replace("{{net}}", invoiceTestCase.netAmount().toString())
-                .replace("{{vat}}", invoiceTestCase.vatAmount().toString())
-                .replace("{{gross}}", invoiceTestCase.grossAmount().toString());
+                .replace("#seller_nip#", invoiceTestCase.sellerNip())
+                .replace("#buyer_nip#", invoiceTestCase.buyerNip())
+                .replace("#invoicing_date#", invoicingDate)
+                //.replace("#invoice_number#", invoiceNumber) // That one is generated further at generateInvoicesInMemory, as for each .xml unique identifier required
+                .replace("#net#", invoiceTestCase.netAmount().toString())
+                .replace("#vat#", invoiceTestCase.vatAmount().toString())
+                .replace("#gross#", invoiceTestCase.grossAmount().toString());
 
         EncryptionData encryptionData = defaultCryptographyService.getEncryptionData();
 
         Map<String, byte[]> invoicesInMemory = FilesUtil.generateInvoicesInMemory(invoicesCount, invoiceTestCase.sellerNip(), invoiceTemplate);
+
+        for (Map.Entry<String, byte[]> stringEntry : invoicesInMemory.entrySet()) {
+            log.debug("Value: {}", new String(stringEntry.getValue(), StandardCharsets.UTF_8));
+        }
 
         byte[] zipBytes = FilesUtil.createZip(invoicesInMemory);
 
@@ -100,7 +110,7 @@ public class InvoiceService {
         // Build request
         OpenBatchSessionRequest request = buildOpenBatchSessionRequest(zipMetadata, encryptedZipParts, encryptionData);
 
-        OpenBatchSessionResponse response = ksefClient.openBatchSession(request, accessToken);
+        OpenBatchSessionResponse response = ksefClient.openBatchSession(request, UpoVersion.UPO_4_3, accessToken);
 
         if (response == null || response.getReferenceNumber() == null) {
             throw new IllegalStateException("KSeF returned no session reference number.");
@@ -119,7 +129,7 @@ public class InvoiceService {
 
         for (int i = 0; i < encryptedZipParts.size(); i++) {
             BatchPartSendingInfo part = encryptedZipParts.get(i);
-            builder = builder.addBatchFilePart(i + 1, "faktura_part" + (i + 1) + ".zip.aes",
+            builder = builder.addBatchFilePart(i + 1,
                     part.getMetadata().getFileSize(), part.getMetadata().getHashSHA());
         }
 

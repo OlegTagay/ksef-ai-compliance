@@ -1,7 +1,6 @@
 package com.bsg6;
 
 import com.bsg6.model.InvoiceData;
-import com.bsg6.utils.IdentifierGeneratorUtils;
 import jakarta.xml.bind.JAXBException;
 import org.testng.annotations.Test;
 import pl.akmf.ksef.sdk.client.model.ApiException;
@@ -17,10 +16,9 @@ public class BatchInvoiceTest extends KsefBaseIntegrationTest {
 
     @Test
     void batchSessionE2EIntegrationTest() throws JAXBException, IOException, ApiException {
-        String contextNip = IdentifierGeneratorUtils.generateRandomNIP();
-        String accessToken = authService.authWithCustomNipAndRsa(contextNip).accessToken();
-
         InvoiceData invoiceTestCase = new InvoiceData("1234563218", "8567346215", new BigDecimal("100.00"), new BigDecimal("23.00"), new BigDecimal("123.00"));
+
+        String accessToken = authService.authWithCustomNipAndRsa(invoiceTestCase.sellerNip()).accessToken();
 
         String sessionReferenceNumber = invoiceService.openBatchSessionAndSendInvoicesParts(invoiceTestCase, accessToken, DEFAULT_INVOICES_COUNT, DEFAULT_NUMBER_OF_PARTS);
 

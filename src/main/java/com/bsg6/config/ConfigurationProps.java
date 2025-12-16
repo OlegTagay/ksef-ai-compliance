@@ -41,6 +41,11 @@ public class ConfigurationProps extends KsefApiProperties {
         return baseUri;
     }
 
+    @Override
+    public String getQrUri() {
+        return "";
+    }
+
     public Map<String, String> getDefaultHeaders() {
         return defaultHeaders;
     }
