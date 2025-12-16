@@ -65,5 +65,35 @@ dependencies {
 
 test {
     jvmArgs "-Djdk.httpclient.HttpClient.log=none"
-    useTestNG()
+
+    useTestNG() {
+        // Use the testng.xml configuration file for parallel execution
+        suites 'src/test/resources/testng.xml'
+
+        // Configure parallel execution
+        parallel = 'methods'
+        threadCount = Runtime.runtime.availableProcessors()
+
+        // Enable parallel data provider execution
+        useDefaultListeners = true
+
+        // Set system properties for TestNG parallel execution
+        systemProperty 'dataproviderthreadcount', Runtime.runtime.availableProcessors().toString()
+    }
+
+    // Increase max heap size for parallel execution
+    maxHeapSize = '2048m'
+
+    // Show test output
+    testLogging {
+        events "passed", "skipped", "failed", "started"
+        showStandardStreams = true
+        exceptionFormat = 'full'
+
+        // Show which thread is running each test
+        afterTest { descriptor, result ->
+            logger.lifecycle("Test {} finished with result: {} on thread: {}",
+                descriptor.displayName, result.resultType, Thread.currentThread().name)
+        }
+    }
 }
