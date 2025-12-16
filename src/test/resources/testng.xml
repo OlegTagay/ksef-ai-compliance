@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="KSeF Integration Test Suite" parallel="methods" thread-count="8" data-provider-thread-count="8" verbose="2">
+    <test name="Invoice Integration Tests" preserve-order="false">
+        <classes>
+            <class name="com.bsg6.InvoiceIntegrationTest"/>
+        </classes>
+    </test>
+
+    <test name="Batch Invoice Tests" preserve-order="false">
+        <classes>
+            <class name="com.bsg6.BatchInvoiceTest"/>
+        </classes>
+    </test>
+
+    <test name="Token Integration Tests" preserve-order="false">
+        <classes>
+            <class name="com.bsg6.TokenIntegrationTest"/>
+        </classes>
+    </test>
+</suite>
