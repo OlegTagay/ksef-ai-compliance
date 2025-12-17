@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<invoice>
+  <number>1/12/2025</number>
+  <place></place>
+  <sell-date>2025-12-17</sell-date>
+  <payment-type>cash</payment-type>
+  <price-net type="decimal">100.0</price-net>
+  <price-gross type="decimal">123.0</price-gross>
+  <currency>PLN</currency>
+  <description></description>
+  <seller-name>ALEH TAHAI</seller-name>
+  <seller-tax-no>8992962449</seller-tax-no>
+  <seller-street>Miedzygorska 8</seller-street>
+  <seller-post-code>52-315</seller-post-code>
+  <seller-city>Wroclaw</seller-city>
+  <seller-country></seller-country>
+  <seller-email></seller-email>
+  <seller-phone></seller-phone>
+  <seller-fax></seller-fax>
+  <seller-www></seller-www>
+  <seller-person>Oleg</seller-person>
+  <seller-bank>PKO IKO</seller-bank>
+  <seller-bank-account>324321432143214321432</seller-bank-account>
+  <buyer-name>GENERAL MOTORS</buyer-name>
+  <buyer-tax-no>8992962449</buyer-tax-no>
+  <buyer-post-code>52-315</buyer-post-code>
+  <buyer-city>WARSZAWA</buyer-city>
+  <buyer-street>Miedzygorska 8</buyer-street>
+  <buyer-country></buyer-country>
+  <buyer-email></buyer-email>
+  <buyer-www nil="true"/>
+  <buyer-fax nil="true"/>
+  <buyer-phone></buyer-phone>
+  <kind>vat</kind>
+  <payment-to type="date">2025-12-18</payment-to>
+  <paid type="decimal">123.0</paid>
+  <seller-bank-account-id type="integer" nil="true"/>
+  <lang>pl</lang>
+  <issue-date type="date">2025-12-17</issue-date>
+  <price-tax type="decimal">23.0</price-tax>
+  <oid></oid>
+  <discount type="decimal">0.0</discount>
+  <show-discount type="boolean">false</show-discount>
+  <description-long></description-long>
+  <buyer-tax-no-kind nil="true"/>
+  <seller-tax-no-kind nil="true"/>
+  <description-footer></description-footer>
+  <sell-date-kind></sell-date-kind>
+  <payment-to-kind>1</payment-to-kind>
+  <exchange-currency nil="true"/>
+  <discount-kind>percent_total</discount-kind>
+  <income type="boolean">true</income>
+  <exchange-kind>nbp</exchange-kind>
+  <exchange-rate type="decimal">1.0</exchange-rate>
+  <delivery-address></delivery-address>
+  <buyer-person></buyer-person>
+  <buyer-bank-account nil="true"/>
+  <buyer-bank nil="true"/>
+  <exchange-note></exchange-note>
+  <buyer-company type="boolean">true</buyer-company>
+  <exchange-currency-rate type="decimal" nil="true"/>
+  <exchange-date type="date" nil="true"/>
+  <split-payment>0</split-payment>
+  <buyer-mobile-phone></buyer-mobile-phone>
+  <seller-bdo-no></seller-bdo-no>
+  <e-receipt-view-url nil="true"/>
+  <positions type="array">
+    <position type="InvoicePosition">
+      <name>LAPTOP</name>
+      <price-net type="decimal">100.0</price-net>
+      <quantity type="decimal">1.0</quantity>
+      <total-price-gross type="decimal">123.0</total-price-gross>
+      <total-price-net type="decimal">100.0</total-price-net>
+      <additional-info></additional-info>
+      <quantity-unit>szt</quantity-unit>
+      <tax>23</tax>
+      <price-gross type="decimal">123.0</price-gross>
+      <price-tax type="decimal">23.0</price-tax>
+      <total-price-tax type="decimal">23.0</total-price-tax>
+      <discount type="decimal" nil="true"/>
+      <discount-percent type="decimal" nil="true"/>
+      <tax2>0</tax2>
+      <code nil="true"/>
+    </position>
+  </positions>
+</invoice>
