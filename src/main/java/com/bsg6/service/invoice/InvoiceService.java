@@ -68,6 +68,30 @@ public class InvoiceService {
         return sendInvoiceResponse.getReferenceNumber();
     }
 
+    public String sendInvoiceXmlOnlineSession(String invoiceXml, String sessionReferenceNumber, EncryptionData encryptionData,
+                                              String accessToken) throws ApiException {
+        byte[] invoice = invoiceXml.getBytes(StandardCharsets.UTF_8);
+
+        byte[] encryptedInvoice = defaultCryptographyService.encryptBytesWithAES256(invoice,
+                encryptionData.cipherKey(),
+                encryptionData.cipherIv());
+
+        FileMetadata invoiceMetadata = defaultCryptographyService.getMetaData(invoice);
+        FileMetadata encryptedInvoiceMetadata = defaultCryptographyService.getMetaData(encryptedInvoice);
+
+        SendInvoiceOnlineSessionRequest sendInvoiceOnlineSessionRequest = new SendInvoiceOnlineSessionRequestBuilder()
+                .withInvoiceHash(invoiceMetadata.getHashSHA())
+                .withInvoiceSize(invoiceMetadata.getFileSize())
+                .withEncryptedInvoiceHash(encryptedInvoiceMetadata.getHashSHA())
+                .withEncryptedInvoiceSize(encryptedInvoiceMetadata.getFileSize())
+                .withEncryptedInvoiceContent(Base64.getEncoder().encodeToString(encryptedInvoice))
+                .build();
+
+        SendInvoiceResponse sendInvoiceResponse = ksefClient.onlineSessionSendInvoice(sessionReferenceNumber, sendInvoiceOnlineSessionRequest, accessToken);
+
+        return sendInvoiceResponse.getReferenceNumber();
+    }
+
     public String openBatchSessionAndSendInvoicesParts(InvoiceData invoiceTestCase, String accessToken, int invoicesCount, int partsCount) throws IOException, ApiException {
         // Render invoice from template (invoice number will be generated per-invoice by generateInvoicesInMemory)
         String invoiceTemplate = renderInvoiceFromTemplate(invoiceTestCase, false);

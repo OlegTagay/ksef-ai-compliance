@@ -1,0 +1,77 @@
+# Configuration file for invoice generator
+
+# Seller information
+seller:
+  name: "Przykladowa Spolka z o.o."
+  tax_no: "1234563218"  # NIP
+  street: "ul. Przykladowa 1"
+  post_code: "00-000"
+  city: ""
+  country: "PL"
+  email: "seller@example.com"
+  phone: "+48123456789"
+  person: "Jan Kowalski"
+  bank: "PKO BP"
+  bank_account: "12345678901234567890123456"
+
+# Buyer information (leave empty to generate random)
+buyer:
+  name: ""  # If empty, will be auto-generated
+  tax_no: ""  # If empty, will be auto-generated
+  street: ""
+  post_code: ""
+  city: ""
+  country: "PL"
+  email: ""
+  phone: ""
+
+# Invoice settings
+invoice:
+  currency: "PLN"
+  payment_type: "transfer"  # cash, transfer, card
+  payment_days: 7  # Days until payment due
+  tax_rate: 23  # VAT rate in %
+  lang: "pl"
+  quantity_unit: "szt"
+
+# Product pool for random generation
+products:
+  - name: "LAPTOP"
+    price_net_min: 2000
+    price_net_max: 5000
+  - name: "MONITOR"
+    price_net_min: 500
+    price_net_max: 1500
+  - name: "KLAWIATURA"
+    price_net_min: 100
+    price_net_max: 300
+  - name: "MYSZ"
+    price_net_min: 50
+    price_net_max: 200
+  - name: "DRUKARKA"
+    price_net_min: 300
+    price_net_max: 1000
+  - name: "ROUTER"
+    price_net_min: 150
+    price_net_max: 500
+  - name: "TELEFON"
+    price_net_min: 800
+    price_net_max: 3000
+  - name: "TABLET"
+    price_net_min: 600
+    price_net_max: 2500
+  - name: "KAMERA"
+    price_net_min: 400
+    price_net_max: 2000
+  - name: "SLUCHAWKI"
+    price_net_min: 80
+    price_net_max: 400
+
+# Generation settings
+generation:
+  min_positions: 1  # Minimum number of items per invoice
+  max_positions: 5  # Maximum number of items per invoice
+  min_quantity: 1   # Minimum quantity per item
+  max_quantity: 10  # Maximum quantity per item
+  output_format: "pdf"  # pdf, json or xml
+  output_dir: "../../src/test/resources/invoice/input/pdf/pl/fake/generated"

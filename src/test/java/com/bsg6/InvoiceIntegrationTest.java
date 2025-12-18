@@ -22,12 +22,12 @@ public class InvoiceIntegrationTest extends KsefBaseIntegrationTest {
 
     @DataProvider
     public Object[][] getTestData() {
-        return new Object[][]{
+        return new Object[][] {
                 // Valid test cases
                 {new Result(true, "valid TC - basic"),
-                        new InvoiceData("1234563218", "8567346215", new BigDecimal("100.00"), new BigDecimal("23.00"), new BigDecimal("123.00"))},
+                        new InvoiceData("1234563218", "8567346215", new BigDecimal("100.00"), new BigDecimal("23.00"), new BigDecimal("123.00"))}
                 {new Result(true, "valid TC - different VAT rate (8%)"),
-                        new InvoiceData("1234563218", "8567346215", new BigDecimal("100.00"), new BigDecimal("8.00"), new BigDecimal("108.00"))},
+                        new InvoiceData("1234563218", "8567346215", new BigDecimal("100.00"), new BigDecimal("8.00"), new BigDecimal("108.00"))}
                 {new Result(true, "valid TC - zero VAT"),
                         new InvoiceData("1234563218", "8567346215", new BigDecimal("100.00"), new BigDecimal("0.00"), new BigDecimal("100.00"))},
                 {new Result(true, "valid TC - small amounts"),
@@ -105,40 +105,103 @@ public class InvoiceIntegrationTest extends KsefBaseIntegrationTest {
 
     @Test(dataProvider = "getTestData")
     public void sendSimpleInvoiceTest(Result result, InvoiceData invoiceTestCase) throws Exception {
-        encryptionData = getEncryptionData();
+        String accessToken = authService.authWithCustomNipAndRsa(invoiceTestCase.sellerNip()).accessToken();
 
-        // Container to store invoice reference number from within the session
-        final String[] invoiceReferenceNumber = new String[1];
+        encryptionData = defaultCryptographyService.getEncryptionData();
 
-        // Execute session lifecycle: authenticate, open session, send invoice, wait, close session
-        SessionData sessionData = executeInSessionWithData(invoiceTestCase.sellerNip(), (sessionRef, accessToken) -> {
-            // Send invoice within the session
-            invoiceReferenceNumber[0] = invoiceService.sendInvoiceOnlineSession(invoiceTestCase, sessionRef, encryptionData, accessToken);
+        String sessionReferenceNumber = onlineSessionService.openOnlineSession(encryptionData, SystemCode.FA_2, SchemaVersion.VERSION_1_0E, SessionValue.FA, accessToken)
+                .getReferenceNumber();
 
-            // Wait for invoice processing
-            boolean isProcessed = waitForInvoiceProcessing(sessionRef, accessToken);
-            Assert.assertEquals(isProcessed, result.shouldPass(), result.description());
-        });
+        // Step 2: Send invoice
+        String invoiceReferenceNumber = invoiceService.sendInvoiceOnlineSession(invoiceTestCase, sessionReferenceNumber, encryptionData, accessToken);
 
-        // Post-session operations (after session is closed)
-        waitForUpoGeneration(sessionData.sessionReference(), sessionData.accessToken());
+        boolean isProcessed = onlineSessionService.waitUntilInvoicesProcessed(sessionReferenceNumber, accessToken);
 
-        // Get documents
-        SessionInvoiceStatusResponse sessionInvoice = onlineSessionService.getOnlineSessionDocuments(sessionData.sessionReference(), sessionData.accessToken());
+        Assert.assertEquals(isProcessed, result.shouldPass(), result.description());
+
+        // Step 3: Close session
+        onlineSessionService.closeOnlineSession(sessionReferenceNumber, accessToken);
+
+        onlineSessionService.waitUntilUpoGenerated(sessionReferenceNumber, accessToken);
+
+        // Step 4: Get documents
+        SessionInvoiceStatusResponse sessionInvoice = onlineSessionService.getOnlineSessionDocuments(sessionReferenceNumber, accessToken);
         String ksefNumber = sessionInvoice.getKsefNumber();
         Assert.assertNotNull(ksefNumber);
 
-        // Get status after close
-        String upoReferenceNumber = onlineSessionService.getOnlineSessionUpoAfterCloseSession(sessionData.sessionReference(), sessionData.accessToken()).getReferenceNumber();
+        // Step 5: Get status after close
+        String upoReferenceNumber = onlineSessionService.getOnlineSessionUpoAfterCloseSession(sessionReferenceNumber, accessToken).getReferenceNumber();
 
-        // Get UPO by KSeF number and invoice reference number
-        onlineSessionService.getOnlineSessionInvoiceUpo(sessionData.sessionReference(), ksefNumber, sessionData.accessToken());
-        onlineSessionService.getOnlineSessionInvoiceUpoByInvoiceReferenceNumber(sessionData.sessionReference(), invoiceReferenceNumber[0], sessionData.accessToken());
+        // Step 6: Get UPO
+        onlineSessionService.getOnlineSessionInvoiceUpo(sessionReferenceNumber, ksefNumber, accessToken);
+        onlineSessionService.getOnlineSessionInvoiceUpoByInvoiceReferenceNumber(sessionReferenceNumber, invoiceReferenceNumber, accessToken);
 
-        // Get session UPO
-        onlineSessionService.getOnlineSessionUpo(sessionData.sessionReference(), upoReferenceNumber, sessionData.accessToken());
+        // Step 7: Get session UPO
+        onlineSessionService.getOnlineSessionUpo(sessionReferenceNumber, upoReferenceNumber, accessToken);
 
-        // Get invoice
-        invoiceService.getInvoice(sessionInvoice.getKsefNumber(), sessionData.accessToken());
+        // Step 8: Get invoice
+        invoiceService.getInvoice(sessionInvoice.getKsefNumber(), accessToken);
+    }
+
+    @DataProvider
+    public Object[][] getGeneratedXmlInvoices() throws IOException {
+        java.nio.file.Path xmlDir = java.nio.file.Paths.get("src/test/resources/invoice/output/ksef/fa_2/generated");
+
+        if (!java.nio.file.Files.exists(xmlDir)) {
+            return new Object[0][0];
+        }
+
+        return java.nio.file.Files.list(xmlDir)
+                .filter(path -> path.toString().endsWith(".xml"))
+                .sorted()
+                .map(path -> {
+                    try {
+                        String xmlContent = java.nio.file.Files.readString(path);
+                        return new Object[]{xmlContent};
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .toArray(Object[][]::new);
+    }
+
+    @Test(dataProvider = "getGeneratedXmlInvoices")
+    public void sendGeneratedXmlInvoiceTest(String invoiceXml) throws Exception {
+        String accessToken = authService.authWithCustomNipAndRsa("1234563218").accessToken();
+
+        encryptionData = defaultCryptographyService.getEncryptionData();
+
+        String sessionReferenceNumber = onlineSessionService.openOnlineSession(encryptionData, SystemCode.FA_2, SchemaVersion.VERSION_1_0E, SessionValue.FA, accessToken)
+                .getReferenceNumber();
+
+        // Step 2: Send invoice
+        String invoiceReferenceNumber = invoiceService.sendInvoiceXmlOnlineSession(invoiceXml, sessionReferenceNumber, encryptionData, accessToken);
+
+        boolean isProcessed = onlineSessionService.waitUntilInvoicesProcessed(sessionReferenceNumber, accessToken);
+
+        Assert.assertEquals(isProcessed, true, "Should pass. File: " + invoiceXml);
+
+        // Step 3: Close session
+        onlineSessionService.closeOnlineSession(sessionReferenceNumber, accessToken);
+
+        onlineSessionService.waitUntilUpoGenerated(sessionReferenceNumber, accessToken);
+
+        // Step 4: Get documents
+        SessionInvoiceStatusResponse sessionInvoice = onlineSessionService.getOnlineSessionDocuments(sessionReferenceNumber, accessToken);
+        String ksefNumber = sessionInvoice.getKsefNumber();
+        Assert.assertNotNull(ksefNumber);
+
+        // Step 5: Get status after close
+        String upoReferenceNumber = onlineSessionService.getOnlineSessionUpoAfterCloseSession(sessionReferenceNumber, accessToken).getReferenceNumber();
+
+        // Step 6: Get UPO
+        onlineSessionService.getOnlineSessionInvoiceUpo(sessionReferenceNumber, ksefNumber, accessToken);
+        onlineSessionService.getOnlineSessionInvoiceUpoByInvoiceReferenceNumber(sessionReferenceNumber, invoiceReferenceNumber, accessToken);
+
+        // Step 7: Get session UPO
+        onlineSessionService.getOnlineSessionUpo(sessionReferenceNumber, upoReferenceNumber, accessToken);
+
+        // Step 8: Get invoice
+        invoiceService.getInvoice(sessionInvoice.getKsefNumber(), accessToken);
     }
 }
