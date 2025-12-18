@@ -2,3 +2,4 @@ PyYAML>=6.0
 reportlab>=4.0.0
 pdfplumber>=0.11.0
 anthropic>=0.18.0
+lxml>=5.0.0

@@ -179,7 +179,7 @@ public class InvoiceIntegrationTest extends KsefBaseIntegrationTest {
 
         boolean isProcessed = onlineSessionService.waitUntilInvoicesProcessed(sessionReferenceNumber, accessToken);
 
-        Assert.assertEquals(isProcessed, true, "Should pass. File: " + invoiceXml);
+        Assert.assertEquals(isProcessed, true, "Should pass. Xml: " + invoiceXml);
 
         // Step 3: Close session
         onlineSessionService.closeOnlineSession(sessionReferenceNumber, accessToken);

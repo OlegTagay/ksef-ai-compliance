@@ -16,6 +16,12 @@ from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from typing import Dict, List
 import os
 
+# Import logging configuration
+from logging_config import get_logger, log_file_operation
+
+# Initialize logger
+logger = get_logger(__name__)
+
 
 class PDFInvoiceGenerator:
     """Generate PDF invoice with Polish layout."""
@@ -69,7 +75,7 @@ class PDFInvoiceGenerator:
 
         # Fallback to Helvetica (won't show Polish characters correctly)
         if not font_registered:
-            print("Warning: Could not load Unicode fonts. Polish characters may not display correctly.")
+            logger.warning("Could not load Unicode fonts - Polish characters may not display correctly", extra={'extra_fields': {'event_type': 'font_fallback'}})
             self.font_name = 'Helvetica'
             self.font_name_bold = 'Helvetica-Bold'
 
@@ -208,49 +214,74 @@ class PDFInvoiceGenerator:
 
     def generate_pdf(self, invoice_data: Dict, output_path: str):
         """Generate PDF invoice from invoice data."""
-        doc = SimpleDocTemplate(
-            output_path,
-            pagesize=A4,
-            rightMargin=2*cm,
-            leftMargin=2*cm,
-            topMargin=2*cm,
-            bottomMargin=2*cm
-        )
+        invoice_number = invoice_data.get('number', 'unknown')
+        logger.info("Starting PDF generation", extra={'extra_fields': {
+            'invoice_number': invoice_number,
+            'output_path': output_path,
+            'event_type': 'pdf_generation_start'
+        }})
 
-        story = []
+        try:
+            doc = SimpleDocTemplate(
+                output_path,
+                pagesize=A4,
+                rightMargin=2*cm,
+                leftMargin=2*cm,
+                topMargin=2*cm,
+                bottomMargin=2*cm
+            )
 
-        # Top summary section
-        story.append(self._create_top_summary(invoice_data))
-        story.append(Spacer(1, 0.5*cm))
+            story = []
 
-        # Invoice header
-        story.append(self._create_invoice_header(invoice_data))
-        story.append(Spacer(1, 0.3*cm))
+            # Top summary section
+            story.append(self._create_top_summary(invoice_data))
+            story.append(Spacer(1, 0.5*cm))
 
-        # Invoice details
-        story.append(self._create_invoice_details(invoice_data))
-        story.append(Spacer(1, 0.5*cm))
+            # Invoice header
+            story.append(self._create_invoice_header(invoice_data))
+            story.append(Spacer(1, 0.3*cm))
 
-        # Seller and Buyer section
-        story.append(self._create_seller_buyer_section(invoice_data))
-        story.append(Spacer(1, 0.5*cm))
+            # Invoice details
+            story.append(self._create_invoice_details(invoice_data))
+            story.append(Spacer(1, 0.5*cm))
 
-        # Items table
-        story.append(self._create_items_table(invoice_data))
-        story.append(Spacer(1, 0.5*cm))
+            # Seller and Buyer section
+            story.append(self._create_seller_buyer_section(invoice_data))
+            story.append(Spacer(1, 0.5*cm))
 
-        # Summary section
-        story.append(self._create_summary_section(invoice_data))
-        story.append(Spacer(1, 0.5*cm))
+            # Items table
+            story.append(self._create_items_table(invoice_data))
+            story.append(Spacer(1, 0.5*cm))
 
-        # Payment info
-        story.append(self._create_payment_info(invoice_data))
-        story.append(Spacer(1, 0.5*cm))
+            # Summary section
+            story.append(self._create_summary_section(invoice_data))
+            story.append(Spacer(1, 0.5*cm))
 
-        # Footer
-        story.append(self._create_footer(invoice_data))
+            # Payment info
+            story.append(self._create_payment_info(invoice_data))
+            story.append(Spacer(1, 0.5*cm))
 
-        doc.build(story)
+            # Footer
+            story.append(self._create_footer(invoice_data))
+
+            doc.build(story)
+
+            log_file_operation(logger, 'pdf_generation', output_path, True)
+            logger.info("PDF generated successfully", extra={'extra_fields': {
+                'invoice_number': invoice_number,
+                'output_path': output_path,
+                'event_type': 'pdf_generation_complete'
+            }})
+
+        except Exception as e:
+            log_file_operation(logger, 'pdf_generation', output_path, False, str(e))
+            logger.error("PDF generation failed", extra={'extra_fields': {
+                'invoice_number': invoice_number,
+                'output_path': output_path,
+                'event_type': 'pdf_generation_failed',
+                'error': str(e)
+            }}, exc_info=True)
+            raise
 
     def _create_top_summary(self, data: Dict) -> Table:
         """Create top summary section with totals."""

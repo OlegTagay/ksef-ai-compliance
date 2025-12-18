@@ -3,32 +3,58 @@ KSeF XML Converter
 
 Converts invoice data to Polish KSeF (Krajowy System e-Faktur) XML format.
 Supports conversion from Python dictionaries and PDF files.
+
+Validates against official KSeF schemas:
+- FA(2): https://github.com/CIRFMF/ksef-docs/blob/main/faktury/schemy/FA/schemat_FA(2)_v1-0E.xsd
+- FA(3): https://github.com/CIRFMF/ksef-docs/blob/main/faktury/schemy/FA/schemat_FA(3)_v1-0E.xsd
+
+Official KSeF documentation: https://github.com/CIRFMF/ksef-docs
 """
 
 import os
 import json
 import re
 from datetime import datetime
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Literal
 from xml.etree import ElementTree as ET
 from xml.dom import minidom
+from pathlib import Path
 import pdfplumber
 from anthropic import Anthropic
+from lxml import etree
+
+# Import logging configuration
+from logging_config import (
+    get_logger,
+    set_correlation_id,
+    log_file_operation,
+    log_api_call,
+    log_invoice_processing
+)
+
+# Initialize logger
+logger = get_logger(__name__)
 
 
 class KSeFXMLConverter:
     """Convert invoice data to KSeF XML format."""
 
-    def __init__(self, anthropic_api_key: Optional[str] = None):
+    def __init__(self, anthropic_api_key: Optional[str] = None, schema_type: Literal['FA2', 'FA3'] = 'FA2'):
         """Initialize converter.
 
         Args:
             anthropic_api_key: Optional API key for Claude AI. If not provided,
                              will look for ANTHROPIC_API_KEY environment variable.
+            schema_type: Type of KSeF schema to use ('FA2' or 'FA3'). Default is 'FA2'.
         """
         self.namespace = "http://crd.gov.pl/wzor/2023/06/29/12648/"
         self.namespace_xsi = "http://www.w3.org/2001/XMLSchema-instance"
         self.namespace_xsd = "http://www.w3.org/2001/XMLSchema"
+        self.schema_type = schema_type
+
+        # Determine schema file path
+        script_dir = Path(__file__).parent.parent.parent  # Go up to project root
+        self.schema_path = script_dir / 'src' / 'main' / 'resources' / f'schemat_FA({schema_type[-1]})_v1-0E.xsd'
 
         # Initialize Anthropic client for PDF parsing
         api_key = anthropic_api_key or os.environ.get('ANTHROPIC_API_KEY')
@@ -55,18 +81,21 @@ class KSeFXMLConverter:
         # Naglowek (Header)
         naglowek = ET.SubElement(root, f"{{{self.namespace}}}Naglowek")
 
+        # Use schema_type to determine variant (2 or 3)
+        variant_number = self.schema_type[-1]  # Extract '2' from 'FA2' or '3' from 'FA3'
+
         kod_formularza = ET.SubElement(
             naglowek,
             f"{{{self.namespace}}}KodFormularza",
             attrib={
-                "kodSystemowy": "FA (2)",
+                "kodSystemowy": f"FA ({variant_number})",
                 "wersjaSchemy": "1-0E"
             }
         )
         kod_formularza.text = "FA"
 
         wariant = ET.SubElement(naglowek, f"{{{self.namespace}}}WariantFormularza")
-        wariant.text = "2"
+        wariant.text = variant_number
 
         data_wytworzenia = ET.SubElement(naglowek, f"{{{self.namespace}}}DataWytworzeniaFa")
         data_wytworzenia.text = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
@@ -166,9 +195,108 @@ class KSeFXMLConverter:
         dom = minidom.parseString(xml_str)
         return dom.toprettyxml(indent="    ", encoding='utf-8').decode('utf-8')
 
-    def save_ksef_xml(self, invoice_data: Dict, output_path: str):
-        """Save invoice as KSeF XML file."""
+    def validate_against_xsd(self, xml_content: str) -> Tuple[bool, Optional[str]]:
+        """Validate XML content against KSeF XSD schema.
+
+        Args:
+            xml_content: XML string to validate
+
+        Returns:
+            Tuple of (is_valid: bool, error_message: Optional[str])
+            If valid, returns (True, None)
+            If invalid, returns (False, error_message)
+
+        Raises:
+            FileNotFoundError: If XSD schema file not found
+        """
+        logger.info(
+            f"Validating XML against {self.schema_type} schema",
+            extra={'extra_fields': {
+                'schema_type': self.schema_type,
+                'schema_path': str(self.schema_path),
+                'event_type': 'validation_start'
+            }}
+        )
+
+        if not self.schema_path.exists():
+            error_msg = f"XSD schema file not found: {self.schema_path}"
+            logger.error(error_msg, extra={'extra_fields': {'event_type': 'schema_not_found'}})
+            raise FileNotFoundError(error_msg)
+
+        try:
+            # Parse XSD schema
+            with open(self.schema_path, 'rb') as schema_file:
+                schema_doc = etree.parse(schema_file)
+                schema = etree.XMLSchema(schema_doc)
+
+            # Parse XML content
+            xml_doc = etree.fromstring(xml_content.encode('utf-8'))
+
+            # Validate
+            is_valid = schema.validate(xml_doc)
+
+            if is_valid:
+                logger.info(
+                    "XML validation successful",
+                    extra={'extra_fields': {
+                        'schema_type': self.schema_type,
+                        'event_type': 'validation_success'
+                    }}
+                )
+                return True, None
+            else:
+                # Collect all validation errors
+                errors = []
+                for error in schema.error_log:
+                    errors.append(f"Line {error.line}: {error.message}")
+
+                error_message = "\n".join(errors)
+                logger.error(
+                    "XML validation failed",
+                    extra={'extra_fields': {
+                        'schema_type': self.schema_type,
+                        'validation_errors': errors,
+                        'event_type': 'validation_failed'
+                    }}
+                )
+                return False, error_message
+
+        except etree.XMLSyntaxError as e:
+            error_msg = f"XML syntax error: {str(e)}"
+            logger.error(
+                error_msg,
+                extra={'extra_fields': {'event_type': 'xml_syntax_error'}},
+                exc_info=True
+            )
+            return False, error_msg
+        except Exception as e:
+            error_msg = f"Validation error: {str(e)}"
+            logger.error(
+                error_msg,
+                extra={'extra_fields': {'event_type': 'validation_error'}},
+                exc_info=True
+            )
+            return False, error_msg
+
+    def save_ksef_xml(self, invoice_data: Dict, output_path: str, validate: bool = True):
+        """Save invoice as KSeF XML file with optional validation.
+
+        Args:
+            invoice_data: Invoice data dictionary
+            output_path: Path to save XML file
+            validate: If True, validate against XSD schema before saving (default: True)
+
+        Raises:
+            ValueError: If validation fails
+        """
         xml_content = self.convert_to_ksef_xml(invoice_data)
+
+        # Validate before saving if requested
+        if validate:
+            is_valid, error_message = self.validate_against_xsd(xml_content)
+            if not is_valid:
+                raise ValueError(f"XML validation failed:\n{error_message}")
+
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(xml_content)
 
@@ -207,7 +335,7 @@ class KSeFXMLConverter:
             If successful, returns populated dict and True
             If failed, returns partial dict and False
         """
-        print("Attempting rule-based parsing...")
+        logger.info("Attempting rule-based parsing", extra={'extra_fields': {'parsing_method': 'rule-based'}})
 
         invoice_data = {
             'seller_name': '',
@@ -392,10 +520,23 @@ class KSeFXMLConverter:
         missing_fields = [field for field in required_fields if not invoice_data.get(field) or invoice_data[field] == '0.00']
 
         if missing_fields:
-            print(f"⚠ Rule-based parsing incomplete. Missing/invalid fields: {', '.join(missing_fields)}")
+            logger.warning(
+                "Rule-based parsing incomplete",
+                extra={'extra_fields': {
+                    'missing_fields': missing_fields,
+                    'parsing_method': 'rule-based',
+                    'event_type': 'parsing_incomplete'
+                }}
+            )
             return invoice_data, False
         else:
-            print("✓ Rule-based parsing successful!")
+            logger.info(
+                "Rule-based parsing successful",
+                extra={'extra_fields': {
+                    'parsing_method': 'rule-based',
+                    'event_type': 'parsing_success'
+                }}
+            )
             return invoice_data, True
 
     def parse_invoice_from_text(self, text: str) -> Dict:
@@ -495,8 +636,25 @@ Important:
             ValueError: If API key is not configured when AI parsing is needed
             Exception: If both parsing methods fail
         """
-        print(f"Extracting text from PDF: {pdf_path}")
-        text = self.extract_text_from_pdf(pdf_path)
+        # Set correlation ID for this conversion
+        correlation_id = set_correlation_id()
+
+        logger.info(
+            f"Starting PDF to KSeF XML conversion",
+            extra={'extra_fields': {
+                'pdf_path': pdf_path,
+                'output_path': output_path,
+                'force_ai': force_ai,
+                'event_type': 'conversion_start'
+            }}
+        )
+
+        try:
+            text = self.extract_text_from_pdf(pdf_path)
+            log_file_operation(logger, 'pdf_text_extraction', pdf_path, True)
+        except Exception as e:
+            log_file_operation(logger, 'pdf_text_extraction', pdf_path, False, str(e))
+            raise
 
         invoice_data = None
         parsing_method = None
@@ -507,29 +665,99 @@ Important:
             if success:
                 parsing_method = "rule-based"
             else:
-                print("⚠ Rule-based parsing failed, falling back to Claude AI...")
+                logger.warning(
+                    "Rule-based parsing failed, falling back to Claude AI",
+                    extra={'extra_fields': {'event_type': 'fallback_to_ai'}}
+                )
                 invoice_data = None
 
         # Fall back to Claude AI if rule-based parsing failed
         if invoice_data is None:
             if not self.anthropic_client:
+                logger.error(
+                    "Claude AI not configured and rule-based parsing failed",
+                    extra={'extra_fields': {'event_type': 'parsing_failed'}}
+                )
                 raise ValueError(
                     "Rule-based parsing failed and Claude AI is not configured. "
                     "Set ANTHROPIC_API_KEY environment variable or pass api_key to constructor."
                 )
 
-            print("Using Claude AI for intelligent parsing...")
-            invoice_data = self.parse_invoice_from_text(text)
-            parsing_method = "Claude AI"
+            logger.info(
+                "Using Claude AI for intelligent parsing",
+                extra={'extra_fields': {'parsing_method': 'claude_ai'}}
+            )
 
-        print(f"✓ Successfully parsed invoice using {parsing_method}")
-        print("Converting to KSeF XML format...")
-        xml_content = self.convert_to_ksef_xml(invoice_data)
+            try:
+                invoice_data = self.parse_invoice_from_text(text)
+                parsing_method = "Claude AI"
+                log_api_call(logger, '/messages', 'POST', 200, None)
+            except Exception as e:
+                logger.error(
+                    f"Claude AI parsing failed: {str(e)}",
+                    extra={'extra_fields': {'event_type': 'ai_parsing_failed'}},
+                    exc_info=True
+                )
+                raise
+
+        logger.info(
+            f"Successfully parsed invoice",
+            extra={'extra_fields': {
+                'parsing_method': parsing_method,
+                'invoice_number': invoice_data.get('number'),
+                'event_type': 'parsing_complete'
+            }}
+        )
+
+        try:
+            xml_content = self.convert_to_ksef_xml(invoice_data)
+            logger.info(
+                "Successfully converted to KSeF XML format",
+                extra={'extra_fields': {'event_type': 'xml_conversion_complete'}}
+            )
+        except Exception as e:
+            logger.error(
+                f"XML conversion failed: {str(e)}",
+                extra={'extra_fields': {'event_type': 'xml_conversion_failed'}},
+                exc_info=True
+            )
+            raise
+
+        # Validate XML against XSD schema
+        try:
+            is_valid, error_message = self.validate_against_xsd(xml_content)
+            if not is_valid:
+                logger.error(
+                    f"XSD validation failed: {error_message}",
+                    extra={'extra_fields': {'event_type': 'xsd_validation_failed'}}
+                )
+                raise ValueError(f"Generated XML does not conform to KSeF schema:\n{error_message}")
+        except Exception as e:
+            logger.error(
+                f"Validation error: {str(e)}",
+                extra={'extra_fields': {'event_type': 'validation_error'}},
+                exc_info=True
+            )
+            raise
 
         if output_path:
-            print(f"Saving KSeF XML to: {output_path}")
-            with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(xml_content)
+            try:
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(xml_content)
+                log_file_operation(logger, 'xml_save', output_path, True)
+            except Exception as e:
+                log_file_operation(logger, 'xml_save', output_path, False, str(e))
+                raise
+
+        logger.info(
+            "PDF to KSeF XML conversion completed successfully",
+            extra={'extra_fields': {
+                'parsing_method': parsing_method,
+                'invoice_number': invoice_data.get('number'),
+                'schema_validated': True,
+                'event_type': 'conversion_complete'
+            }}
+        )
 
         return xml_content
 

@@ -16,6 +16,12 @@ from typing import Dict, List, Any
 import os
 from pdf_generator import PDFInvoiceGenerator
 
+# Import logging configuration
+from logging_config import setup_logging, get_logger, set_correlation_id
+
+# Initialize logger
+logger = get_logger(__name__)
+
 
 class InvoiceGenerator:
     """Generate random invoices based on configuration."""
@@ -31,7 +37,7 @@ class InvoiceGenerator:
             with open(config_file, 'r', encoding='utf-8') as f:
                 return yaml.safe_load(f)
         else:
-            print(f"Warning: Config file {config_path} not found. Using defaults.")
+            logger.warning(f"Config file {config_path} not found, using defaults", extra={'extra_fields': {'config_path': config_path}})
             return self.get_default_config()
 
     def get_default_config(self) -> Dict:
@@ -308,16 +314,19 @@ class InvoiceGenerator:
                 pdf_gen.generate_pdf(invoice, str(filepath))
             elif output_format == 'xml':
                 # XML generation can be added later
-                print(f"Warning: XML format not yet implemented. Saving as JSON.")
+                logger.warning("XML format not yet implemented, saving as JSON instead", extra={'extra_fields': {'invoice_number': invoice.get('number')}})
                 filepath = output_dir / filename.replace('.xml', '.json')
                 with open(filepath, 'w', encoding='utf-8') as f:
                     json.dump(invoice, f, indent=2, ensure_ascii=False)
 
-            print(f"Generated: {filepath}")
+            logger.info(f"Invoice generated successfully", extra={'extra_fields': {'filepath': str(filepath), 'invoice_number': invoice.get('number'), 'event_type': 'invoice_generated'}})
 
 
 def main():
     """Main entry point."""
+    # Initialize logging
+    setup_logging(log_level="INFO", log_file="logs/invoice_generator.log", log_format="json")
+
     parser = argparse.ArgumentParser(
         description='Generate random invoices for testing'
     )
@@ -336,14 +345,23 @@ def main():
 
     args = parser.parse_args()
 
+    # Set correlation ID for this batch
+    correlation_id = set_correlation_id()
+
     print(f"Generating {args.count} invoices...")
+    logger.info(f"Starting invoice generation batch", extra={'extra_fields': {'count': args.count, 'config': args.config, 'event_type': 'batch_start'}})
 
-    generator = InvoiceGenerator(args.config)
-    invoices = generator.generate_invoices(args.count)
-    generator.save_invoices(invoices)
+    try:
+        generator = InvoiceGenerator(args.config)
+        invoices = generator.generate_invoices(args.count)
+        generator.save_invoices(invoices)
 
-    print(f"\nSuccessfully generated {len(invoices)} invoices!")
-    print(f"Output directory: {generator.config['generation']['output_dir']}")
+        print(f"\nSuccessfully generated {len(invoices)} invoices!")
+        print(f"Output directory: {generator.config['generation']['output_dir']}")
+        logger.info(f"Invoice generation batch completed", extra={'extra_fields': {'count': len(invoices), 'output_dir': generator.config['generation']['output_dir'], 'event_type': 'batch_complete'}})
+    except Exception as e:
+        logger.error(f"Invoice generation failed: {str(e)}", extra={'extra_fields': {'event_type': 'batch_failed'}}, exc_info=True)
+        raise
 
 
 if __name__ == '__main__':
