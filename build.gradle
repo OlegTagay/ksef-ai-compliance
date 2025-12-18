@@ -11,12 +11,13 @@ java {
 }
 
 ext {
-    junitVersion      = '5.10.0'
-    testngVersion     = '7.11.0'
-    jacksonVersion    = '2.17.1'
-    ksefSdkVersion    = '3.0.9'
-    awaitilityVersion = '4.2.0'
-    jakartaXmlVersion = '4.0.4'
+    junitVersion          = '5.10.0'
+    testngVersion         = '7.11.0'
+    jacksonVersion        = '2.17.1'
+    ksefSdkVersion        = '3.0.9'
+    awaitilityVersion     = '4.2.0'
+    jakartaXmlVersion     = '4.0.4'
+    logstashEncoderVersion = '8.0'
 }
 
 group = 'com.bsg6'
@@ -61,6 +62,9 @@ dependencies {
 
     /* Awaitility */
     implementation "org.awaitility:awaitility:${awaitilityVersion}"
+
+    /* Logback JSON Encoder */
+    implementation "net.logstash.logback:logstash-logback-encoder:${logstashEncoderVersion}"
 }
 
 test {
